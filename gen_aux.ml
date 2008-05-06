@@ -127,7 +127,7 @@ let rec gen_to ?name t x =
     | Float _ -> <:expr@g< Rtypes.float_of_fp8 (Xdr.dest_xv_double $x$) >>
     | Bool _ -> <:expr@g< Xdr.dest_xv_enum_fast $x$ = 1 >>
     | Char _ -> <:expr@g< char_of_int (Xdr.dest_xv_enum_fast $x$) >>
-    | String _ -> <:expr@g< Xdr.dest_xv_string >>
+    | String _ -> <:expr@g< Xdr.dest_xv_string $x$>>
 
     | Tuple (_, parts) ->
         let (pps, pes) = G.vars parts in
@@ -296,8 +296,8 @@ let rec gen_of ?name t v =
      | Option (_, t) ->
          <:expr@g<
            match $v$ with
-             | None -> (0, Xdr.XV_void)
-             | Some v -> (1, $gen_of t <:expr@g< v >>$)
+             | None -> Xdr.XV_union_over_enum_fast (0, Xdr.XV_void)
+             | Some v -> Xdr.XV_union_over_enum_fast (1, $gen_of t <:expr@g< v >>$)
          >>
 
      | Apply (_, id, args) ->
@@ -357,14 +357,14 @@ let rec gen_xdr vs bs ds t =
                     loop 0)
         >>
 
-    | String _ -> <:expr@g< Xdr.X_string_max >>
+    | String _ -> <:expr@g< Xdr.x_string_max >>
 
     | Tuple (_, parts) ->
         let px t i = <:expr@g< ( $`str:string_of_int i$, $gx t$ ) >> in
         <:expr@g< Xdr.X_struct [ $exSem_of_list (List.mapi px parts)$ ] >>
 
     | Record (_, fields) ->
-        let fx (id, t) = <:expr@g< ( $lid:id$, $gx t$ ) >> in
+        let fx (id, t) = <:expr@g< ( $`str:id$, $gx t$ ) >> in
         <:expr@g< Xdr.X_struct [ $exSem_of_list (List.map fx fields)$ ] >>
 
     | Variant (_, arms) ->

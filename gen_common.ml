@@ -29,7 +29,9 @@ let vars l =
   let es = List.mapi (fun _ i -> <:expr@g< $lid:"x" ^ string_of_int i$ >>) l in
   (ps, es)
 
-let rec gen_type ?name = function
+let rec gen_type ?name t =
+  let gen_type = gen_type ?name in
+  match t with
   | Unit _ -> <:ctyp@g< unit >>
   | Int _ -> <:ctyp@g< int >>
   | Int32 _ -> <:ctyp@g< int32 >>
