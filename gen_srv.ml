@@ -8,8 +8,24 @@ module G = Gen_common
 let g = Camlp4.PreCast.Loc.ghost
 
 let gen_srv_mli name intf =
+  let modules =
+    match intf with
+      | Simple _ -> <:sig_item@g< >>
+
+      | Modules (_, (_, sync_name, _), _) ->
+          <:sig_item@g<
+            module Sync : functor (A : $uid:name$.$uid:sync_name$) ->
+            sig
+              val bind :
+                ?program_number:Rtypes.uint4 ->
+                ?version_number:Rtypes.uint4 ->
+                Rpc_server.t -> unit
+            end
+          >> in
+
   match intf with
-    | Simple (typedefs, funcs) ->
+    | Simple (_, funcs)
+    | Modules (_, (_, _, funcs), _) ->
         <:sig_item@g<
           val bind :
             ?program_number:Rtypes.uint4 ->
@@ -26,6 +42,9 @@ let gen_srv_mli name intf =
                 >>)
               funcs
               <:ctyp@g< Rpc_server.t -> unit >>$ ;;
+
+          $modules$
+        >>
 
 (*
     val bind_async :
@@ -47,18 +66,6 @@ let gen_srv_mli name intf =
         is
         <:ctyp@g< Rpc_server.t -> unit >>$ ;;
 *)
-(*
-    module Sync : functor (A : $G.sync_module_type name mt is$) ->
-    sig
-      val bind :
-        ?program_number:Rtypes.uint4 ->
-        ?version_number:Rtypes.uint4 ->
-        Rpc_server.t -> unit
-    end
-*)
-        >>
-
-    | Modules _ -> raise (Failure "unimplemented")
 
 let gen_srv_ml name intf =
 
@@ -90,8 +97,34 @@ let gen_srv_ml name intf =
       } ::$e$
     >> in
 
+  let modules =
+    match intf with
+      | Simple _ -> <:str_item@g< >>
+
+      | Modules (_, (_, sync_name, funcs), _) ->
+          <:str_item@g<
+            module Sync (A : $uid:name$.$uid:sync_name$) =
+            struct
+              let bind
+                  ?program_number
+                  ?version_number
+                  srv =
+                $List.fold_left
+                  (fun e (_, id, _, _) ->
+                    (* <:expr@g< $e$ ~ $lid:"proc" ^ id$ : A.$lid:id$ >> does not work? *)
+                    Ast.ExApp(g,
+                             e,
+                             Ast.ExLab (g,
+                                       "proc_" ^ id,
+                                       <:expr@g< A.$lid:id$ >>)))
+                  <:expr@g< bind ?program_number ?version_number >>
+                  funcs$ srv
+            end
+          >> in
+
   match intf with
-    | Simple (typedefs, funcs) ->
+    | Simple (_, funcs)
+    | Modules (_, (_, _, funcs), _) ->
         <:str_item@g<
           let bind
               ?program_number
@@ -105,30 +138,7 @@ let gen_srv_ml name intf =
                     ?program_number ?version_number $G.aux_val name "program"$
                     $List.fold_right sync_func funcs <:expr@g< [] >>$
                     srv
-              >>$
+              >>$ ;;
 
-(*
-    module Sync (A : $G.sync_module_type name mt is$) =
-    struct
-      let bind
-          ?program_number
-          ?version_number
-          srv =
-        $List.fold_left
-          (fun e i ->
-            match i with
-              | Function (_, id, _, _) ->
-                  (* <:expr@g< $e$ ~ $lid:"proc" ^ id$ : A.$lid:id$ >> does not work? *)
-                  Ast.ExApp(g,
-                           e,
-                           Ast.ExLab (g,
-                                     "proc_" ^ id,
-                                     <:expr@g< A.$lid:id$ >>))
-              | _ -> e)
-          <:expr@g< bind ?program_number ?version_number >>
-          is$ srv
-    end
-*)
+          $modules$
         >>
-
-  | _ -> raise (Failure "unimplemented")

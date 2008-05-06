@@ -39,7 +39,7 @@ let check_typedef ids (loc, vars, id, t) =
         [] vars);
   check_type ids (Some vars) t
 
-let rec check_typedefs ids tds =
+let check_typedefs ids tds =
   List.fold_left
     (fun ids ds ->
       let ids =
@@ -52,7 +52,7 @@ let rec check_typedefs ids tds =
               ids ds in
       List.iter (check_typedef ids) ds;
       ids)
-    []
+    ["array", 0; "list", 0; "option", 0]
     tds
 
 let check_function ids loc id args res =
@@ -60,7 +60,7 @@ let check_function ids loc id args res =
   List.iter ct args;
   ct res
 
-let rec check_funcs ids fids funcs =
+let check_funcs ids fids funcs =
   ignore
     (List.fold_left
         (fun fids (loc, id, args, res) ->

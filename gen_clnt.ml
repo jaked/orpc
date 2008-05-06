@@ -8,9 +8,24 @@ module G = Gen_common
 let g = Camlp4.PreCast.Loc.ghost
 
 let gen_clnt_mli name intf =
+  let modules =
+    match intf with
+      | Simple _ -> <:sig_item@g< >>
+
+      | Modules (_, (_, sync_name, _), None) ->
+          <:sig_item@g<
+            module Sync(C : sig val with_client : (Rpc_client.t -> 'a) -> 'a end) : $uid:name$.$uid:sync_name$
+          >>
+      | Modules (_, (_, sync_name, _), Some (_, async_name, _)) ->
+          <:sig_item@g<
+            module Sync(C : sig val with_client : (Rpc_client.t -> 'a) -> 'a end) : $uid:name$.$uid:sync_name$;;
+            module Async(C : sig val with_client : (Rpc_client.t -> 'a) -> 'a end) : $uid:name$.$uid:async_name$;;
+          >> in
+
   match intf with
-    | Simple (typedefs, funcs) ->
-        <:sig_item@g<
+    | Simple (_, funcs)
+    | Modules (_, (_, _, funcs), _) ->
+       <:sig_item@g<
           val create_client :
             ?esys:Unixqueue.event_system ->
             ?program_number:Rtypes.uint4 ->
@@ -44,14 +59,10 @@ let gen_clnt_mli name intf =
                         args
                         (G.aux_type name (G.res id))$
                   >>)
-                funcs)$
+                funcs)$ ;;
 
-(*
-          module Sync(C : sig val with_client : (Rpc_client.t -> 'a) -> 'a end) : $G.sync_module_type name mt is$
-*)
+          $modules$
         >>
-
-    | Modules _ -> raise (Failure "unimplemented")
 
 let gen_clnt_ml name intf =
   let func (_, id, args, res) =
@@ -77,26 +88,39 @@ let gen_clnt_ml name intf =
                 >>$
           >> in
 
-(*
-  let sync_func (_, id, args, res) ->
-    let (ps, es) = G.vars args in
-    <:str_item@g<
-      let $lid:id$ =
-        $List.fold_right
-          (fun p e -> <:expr@g< fun $p$ -> $e$ >>)
-          ps
-          <:expr@g<
-            C.with_client (fun c ->
-              $List.fold_left
-                (fun e v -> <:expr@g< $e$ $v$ >>)
-                <:expr@g< $lid:id$ c >>
-                es$)
-          >>$
-    >>
-*)
+  let modules =
+    match intf with
+      | Simple _ -> <:str_item@g< >>
+
+      | Modules (_, (_, sync_name, sync_funcs), _) ->
+
+          let sync_func (_, id, args, res) =
+            let (ps, es) = G.vars args in
+            <:str_item@g<
+              let $lid:id$ =
+                $List.fold_right
+                  (fun p e -> <:expr@g< fun $p$ -> $e$ >>)
+                  ps
+                  <:expr@g<
+                    C.with_client (fun c ->
+                      $List.fold_left
+                        (fun e v -> <:expr@g< $e$ $v$ >>)
+                        <:expr@g< $lid:id$ c >>
+                        es$)
+                  >>$
+            >> in
+
+          <:str_item@g<
+          module Sync(C : sig val with_client : (Rpc_client.t -> 'a) -> 'a end) =
+          struct
+            $stSem_of_list (List.map sync_func sync_funcs)$
+          end
+          >> in
+
 
   match intf with
-    | Simple (typedefs, funcs) ->
+    | Simple (_, funcs)
+    | Modules (_, (_, _, funcs), _) ->
         <:str_item@g<
           let create_client
               ?(esys = Unixqueue.create_unix_event_system())
@@ -116,16 +140,7 @@ let gen_clnt_ml name intf =
               mode2 =
             Rpc_client.create2 ?program_number ?version_number mode2 $G.aux_val name "program"$ esys ;;
 
-          $stSem_of_list (List.map func funcs)$
+          $stSem_of_list (List.map func funcs)$ ;;
 
-(*
-    module Sync(C : sig val with_client : (Rpc_client.t -> 'a) -> 'a end) =
-    struct
-      include $uid:name ^ "_aux"$
-
-      $stSem_of_list (List.map sync_func funcs)$
-    end
-*)
+          $modules$
         >>
-
-    | Modules _ -> raise (Failure "unimplemented")

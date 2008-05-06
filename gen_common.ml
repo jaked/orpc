@@ -29,7 +29,7 @@ let vars l =
   let es = List.mapi (fun _ i -> <:expr@g< $lid:"x" ^ string_of_int i$ >>) l in
   (ps, es)
 
-let rec gen_type = function
+let rec gen_type ?name = function
   | Unit _ -> <:ctyp@g< unit >>
   | Int _ -> <:ctyp@g< int >>
   | Int32 _ -> <:ctyp@g< int32 >>
@@ -70,7 +70,9 @@ let rec gen_type = function
   | Apply (_, id, args) ->
       List.fold_left
         (fun t a -> <:ctyp@g< $gen_type a$ $t$ >>)
-        <:ctyp@g< $lid:id$ >>
+        (match name with
+          | None -> <:ctyp@g< $lid:id$ >>
+          | Some name -> <:ctyp@g< $uid:name$.$lid:id$ >>)
         args
 
 (*

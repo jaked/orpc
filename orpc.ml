@@ -22,8 +22,8 @@ let do_file fn =
 
     let base = Filename.chop_extension fn in
     let mod_base = String.capitalize (Filename.basename base) in
-    Printers.OCaml.print_interf ~output_file:(base ^ "_aux.mli") (Gen_aux.gen_aux_mli intf);
-    Printers.OCaml.print_implem ~output_file:(base ^ "_aux.ml") (Gen_aux.gen_aux_ml intf);
+    Printers.OCaml.print_interf ~output_file:(base ^ "_aux.mli") (Gen_aux.gen_aux_mli mod_base intf);
+    Printers.OCaml.print_implem ~output_file:(base ^ "_aux.ml") (Gen_aux.gen_aux_ml mod_base intf);
     Printers.OCaml.print_interf ~output_file:(base ^ "_clnt.mli") (Gen_clnt.gen_clnt_mli mod_base intf);
     Printers.OCaml.print_implem ~output_file:(base ^ "_clnt.ml") (Gen_clnt.gen_clnt_ml mod_base intf);
     Printers.OCaml.print_interf ~output_file:(base ^ "_srv.mli") (Gen_srv.gen_srv_mli mod_base intf);
