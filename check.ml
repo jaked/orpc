@@ -52,7 +52,9 @@ let check_typedefs ids tds =
               ids ds in
       List.iter (check_typedef ids) ds;
       ids)
-    ["array", 0; "list", 0; "option", 0]
+    (List.map
+        (fun t -> (t, 0))
+        ["unit"; "int"; "int32"; "int64"; "float"; "bool"; "char"; "string"; "array"; "list"; "option"])
     tds
 
 let check_function ids loc id args res =
