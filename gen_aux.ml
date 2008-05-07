@@ -39,34 +39,28 @@ let gen_aux_mli name intf =
       List.fold_right
         (fun (_, vars, id, _) is ->
           let appd =
-            List.fold_left
-              (fun t v -> <:ctyp@g< '$lid:v$ $t$ >>)
-              (match name with
+            let t =
+              match name with
                 | None -> <:ctyp@g< $lid:id$ >>
-                | Some name -> <:ctyp@g< $uid:name$.$lid:id$ >>)
-              vars in
+                | Some name -> <:ctyp@g< $uid:name$.$lid:id$ >> in
+            G.tapps t (List.map (fun v -> <:ctyp@g< '$lid:v$ >>) vars) in
 
-          let t =
-            List.fold_right
-              (fun v t -> <:ctyp@g< (Xdr.xdr_value -> '$lid:v$) -> $t$ >>)
-              vars
-              <:ctyp@g< Xdr.xdr_value -> $appd$ >> in
-          let is = <:sig_item@g< val $lid:G.to_ id$ : $t$ >> ::is in
+          <:sig_item@g<
+            val $lid:G.to_ id$ :
+              $G.arrows
+                (List.map (fun v -> <:ctyp@g< Xdr.xdr_value -> '$lid:v$ >>) vars)
+                <:ctyp@g< Xdr.xdr_value -> $appd$ >>$
 
-          let t =
-            List.fold_right
-              (fun v t -> <:ctyp@g< ('$lid:v$ -> Xdr.xdr_value) -> $t$ >>)
-              vars
-              <:ctyp@g< $appd$ -> Xdr.xdr_value >> in
-          let is = <:sig_item@g< val $lid:G.of_ id$ : $t$ >> ::is in
+            val $lid:G.of_ id$ :
+              $G.arrows
+                (List.map (fun v -> <:ctyp@g< '$lid:v$ -> Xdr.xdr_value >>) vars)
+                <:ctyp@g< $appd$ -> Xdr.xdr_value >>$
 
-          let t =
-            List.fold_right
-              (fun v t -> <:ctyp@g< Xdr.xdr_type_term -> $t$ >>)
-              vars
-              <:ctyp@g< Xdr.xdr_type_term >> in
-          let is = <:sig_item@g< val $lid:G.xdr id$ : $t$ >> ::is in
-          is)
+            val $lid:G.xdr id$ :
+              $G.arrows
+                (List.map (fun v -> <:ctyp@g< Xdr.xdr_type_term >>) vars)
+                <:ctyp@g< Xdr.xdr_type_term >>$
+          >> :: is)
         ds is in
 
     match name with
@@ -151,19 +145,13 @@ let rec gen_to ?name t x =
 
      | Variant (_, arms) ->
          let mc (id, ts) i =
+           let con =
+             match name with
+               | None -> <:expr@g< $uid:id$ >>
+               | Some name -> <:expr@g< $uid:name$.$uid:id$ >> in
            match ts with
-             | [] ->
-                 begin
-                   match name with
-                     | None -> <:match_case@g< ($`int:i$, _) -> $uid:id$ >>
-                     | Some name -> <:match_case@g< ($`int:i$, _) -> $uid:name$.$uid:id$ >>
-                 end
-             | [t] ->
-                 begin
-                   match name with
-                     | None -> <:match_case@g< ($`int:i$, x) -> $uid:id$ $gen_to t <:expr@g< x >>$ >>
-                     | Some name -> <:match_case@g< ($`int:i$, x) -> $uid:name$.$uid:id$ $gen_to t <:expr@g< x >>$ >>
-                 end
+             | [] -> <:match_case@g< ($`int:i$, _) -> $con$ >>
+             | [t] -> <:match_case@g< ($`int:i$, x) -> $con$ $gen_to t <:expr@g< x >>$ >>
              | _ ->
                  let (pps, pes) = G.vars ts in
                  <:match_case@g<
@@ -172,9 +160,7 @@ let rec gen_to ?name t x =
                        | [| $paSem_of_list pps$ |] ->
                            $List.fold_left
                              (fun ps p -> <:expr@g< $ps$ $p$ >>)
-                             (match name with
-                               | None -> <:expr@g< $uid:id$ >>
-                               | Some name -> <:expr@g< $uid:name$.$uid:id$ >>)
+                             con
                              (List.map2 gen_to ts pes)$
                        | _ -> assert false
                  >> in
@@ -207,10 +193,9 @@ let rec gen_to ?name t x =
 
      | Apply (_, id, args) ->
          <:expr@g<
-           $List.fold_left
-             (fun e a -> <:expr@g< $e$ (fun x -> $gen_to a <:expr@g< x >>$) >>)
+           $G.apps
              <:expr@g< $lid:G.to_ id$ >>
-             args$
+             (List.map (fun a -> <:expr@g< fun x -> $gen_to a <:expr@g< x >>$ >>) args)$
            $x$
          >>
 
@@ -248,36 +233,32 @@ let rec gen_of ?name t v =
 
      | Variant (_, arms) ->
          let mc (id, ts) i =
+           (* I don't see how to substitute just the constructor into these patterns *)
            match ts with
              | [] ->
-                 begin
+                 let conp =
                    match name with
-                     | None -> <:match_case@g< $uid:id$ -> Xdr.XV_union_over_enum_fast ($`int:i$, Xdr.XV_void) >>
-                     | Some name -> <:match_case@g< $uid:name$.$uid:id$ -> Xdr.XV_union_over_enum_fast ($`int:i$, Xdr.XV_void) >>
-                 end
+                     | None -> <:patt@g< $uid:id$ >>
+                     | Some name -> <:patt@g< $uid:name$.$uid:id$ >> in
+                 <:match_case@g< $conp$ -> Xdr.XV_union_over_enum_fast ($`int:i$, Xdr.XV_void) >>
              | [t] ->
-                 begin
+                 let conp =
                    match name with
-                     | None -> <:match_case@g< $uid:id$ x -> Xdr.XV_union_over_enum_fast ($`int:i$, $gen_of t <:expr@g< x >>$) >>
-                     | Some name -> <:match_case@g< $uid:name$.$uid:id$ x -> Xdr.XV_union_over_enum_fast ($`int:i$, $gen_of t <:expr@g< x >>$) >>
-                 end
+                     | None -> <:patt@g< $uid:id$ x >>
+                     | Some name -> <:patt@g< $uid:name$.$uid:id$ x >> in
+                 <:match_case@g< $conp$ -> Xdr.XV_union_over_enum_fast ($`int:i$, $gen_of t <:expr@g< x >>$) >>
              | _ ->
                  let (pps, pes) = G.vars ts in
-                 match name with
-                   | None ->
-                       <:match_case@g<
-                         $uid:id$ ( $paCom_of_list pps$ ) ->
-                           Xdr.XV_union_over_enum_fast
-                             ($`int:i$,
-                             Xdr.XV_struct_fast [| $exSem_of_list (List.map2 gen_of ts pes)$ |])
-                       >>
-                   | Some name ->
-                       <:match_case@g<
-                         $uid:name$.$uid:id$ ( $paCom_of_list pps$ ) ->
-                           Xdr.XV_union_over_enum_fast
-                             ($`int:i$,
-                             Xdr.XV_struct_fast [| $exSem_of_list (List.map2 gen_of ts pes)$ |])
-                       >> in
+                 let conp =
+                   match name with
+                     | None -> <:patt@g< $uid:id$ ( $paCom_of_list pps$ ) >>
+                     | Some name -> <:patt@g< $uid:name$.$uid:id$  ( $paCom_of_list pps$ ) >> in
+                 <:match_case@g<
+                   $conp$ ->
+                     Xdr.XV_union_over_enum_fast
+                       ($`int:i$,
+                       Xdr.XV_struct_fast [| $exSem_of_list (List.map2 gen_of ts pes)$ |])
+                 >> in
          ExMat (g, <:expr@g< $v$ >>,
                mcOr_of_list (List.mapi mc arms))
 
@@ -302,10 +283,9 @@ let rec gen_of ?name t v =
 
      | Apply (_, id, args) ->
          <:expr@g<
-           $List.fold_left
-             (fun e a -> <:expr@g< $e$ (fun v -> $gen_of a <:expr@g< v >>$) >>)
+           $G.apps
              <:expr@g< $lid:G.of_ id$ >>
-             args$
+             (List.map (fun a -> <:expr@g< fun v -> $gen_of a <:expr@g< v >>$ >>) args)$
            $v$
          >>
 
@@ -414,10 +394,9 @@ let rec gen_xdr vs bs ds t =
 
           with Not_found ->
             (* refer to a previous def at the OCaml level *)
-            List.fold_left
-              (fun e a -> <:expr@g< $e$ $gx a$ >>)
+            G.apps
               <:expr@g< $lid:G.xdr id$ >>
-              args
+              (List.map gx args)
         end
 
 and gen_xdr_def vs bs ds id t =
@@ -430,9 +409,8 @@ let gen_aux_ml name intf =
         (fun (_, vars, id, t) ->
           <:binding@g<
             $lid:G.to_ id$ =
-            $List.fold_right
-              (fun v e -> <:expr@g< fun $lid:G.to_p v$ -> $e$ >>)
-              vars
+            $G.funs_ids
+              (List.map G.to_p vars)
               <:expr@g< fun x -> $gen_to ?name t <:expr@g< x >>$ >>$
           >>)
         ds in
@@ -443,9 +421,8 @@ let gen_aux_ml name intf =
         (fun (_, vars, id, t) ->
           <:binding@g<
             $lid:G.of_ id$ =
-            $List.fold_right
-              (fun v e -> <:expr@g< fun $lid:G.of_p v$ -> $e$ >>)
-              vars
+            $G.funs_ids
+              (List.map G.of_p vars)
               <:expr@g< fun x -> $gen_of ?name t <:expr@g< x >>$ >>$
           >>)
         ds in
@@ -457,9 +434,8 @@ let gen_aux_ml name intf =
         | (_, vars, id, t)::ds as ds' ->
             <:binding@g<
               $lid:G.xdr id$ =
-              $List.fold_right
-                (fun v e -> <:expr@g< fun $lid:G.xdr_p v$ -> $e$ >>)
-                vars
+              $G.funs_ids
+                (List.map G.xdr_p vars)
                 (let bid = id_digest id (List.map (fun v -> Var (g, v)) vars) in
                  (* ds' includes current def for polymorphic instantiation *)
                  gen_xdr_def [] [] ds' bid t)$

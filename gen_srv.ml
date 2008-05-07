@@ -34,9 +34,8 @@ let gen_srv_mli name intf =
               (fun (_, id, args, _) t ->
                 <:ctyp@g<
                   $lid:"proc_" ^ id$ :
-                  $List.foldi_right
-                    (fun _ i t -> <:ctyp@g< $G.aux_type name (G.argi id i)$ -> $t$ >>)
-                    args
+                  $G.arrows
+                    (List.mapi (fun _ i -> G.aux_type name (G.argi id i)) args)
                     (G.aux_type name (G.res id))$
                   -> $t$
                 >>)
@@ -89,10 +88,7 @@ let gen_srv_ml name intf =
                   fun x ->
                     let ( $paCom_of_list ps$ ) = $G.aux_val name (G.to_arg id)$ x in
                     $G.aux_val name (G.of_res id)$
-                      $List.fold_left
-                      (fun e a -> <:expr@g< $e$ $a$ >>)
-                      <:expr@g< $lid:"proc_" ^ id$ >>
-                      es$
+                      $G.apps <:expr@g< $lid:"proc_" ^ id$ >> es$
                 >>$
       } ::$e$
     >> in

@@ -54,9 +54,8 @@ let gen_clnt_mli name intf =
                 (fun (_, id, args, res) ->
                   <:sig_item@g<
                     val $lid:id$ : Rpc_client.t ->
-                      $List.foldi_right
-                        (fun _ i t -> <:ctyp@g< $G.aux_type name (G.argi id i)$ -> $t$ >>)
-                        args
+                      $G.arrows
+                        (List.mapi (fun _ i -> G.aux_type name (G.argi id i)) args)
                         (G.aux_type name (G.res id))$
                   >>)
                 funcs)$ ;;
@@ -78,8 +77,7 @@ let gen_clnt_ml name intf =
           let (ps, es) = G.vars args in
           <:str_item@g<
             let $lid:id$ = fun client ->
-              $List.fold_right
-                (fun p e -> <:expr@g< fun $p$ -> $e$ >>)
+              $G.funs
                 ps
                 <:expr@g<
                   let arg = ($exCom_of_list es$) in
@@ -98,16 +96,9 @@ let gen_clnt_ml name intf =
             let (ps, es) = G.vars args in
             <:str_item@g<
               let $lid:id$ =
-                $List.fold_right
-                  (fun p e -> <:expr@g< fun $p$ -> $e$ >>)
+                $G.funs
                   ps
-                  <:expr@g<
-                    C.with_client (fun c ->
-                      $List.fold_left
-                        (fun e v -> <:expr@g< $e$ $v$ >>)
-                        <:expr@g< $lid:id$ c >>
-                        es$)
-                  >>$
+                  <:expr@g< C.with_client (fun c -> $G.apps <:expr@g< $lid:id$ c >> es$) >>$
             >> in
 
           <:str_item@g<

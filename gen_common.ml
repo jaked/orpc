@@ -29,6 +29,33 @@ let vars l =
   let es = List.mapi (fun _ i -> <:expr@g< $lid:"x" ^ string_of_int i$ >>) l in
   (ps, es)
 
+let arrows ts t =
+  List.fold_right
+    (fun t a -> <:ctyp@g< $t$ -> $a$ >>)
+    ts
+    t
+
+let tapps t ts =
+  List.fold_left
+    (fun t t' -> <:ctyp@g< $t'$ $t$ >>)
+    t
+    ts
+
+let funs ps e =
+  List.fold_right
+    (fun p e -> <:expr@g< fun $p$ -> $e$ >>)
+    ps
+    e
+
+let funs_ids vs e =
+  funs (List.map (fun v -> <:patt@g< $lid:v$ >>) vs) e
+
+let apps e es =
+  List.fold_left
+    (fun e e' -> <:expr@g< $e$ $e'$ >>)
+    e
+    es
+
 let rec gen_type ?name t =
   let gen_type = gen_type ?name in
   match t with
