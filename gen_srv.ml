@@ -107,7 +107,7 @@ let gen_srv_ml name intf =
             | _ ->
                 let (ps, es) = G.vars args in
                 <:expr@g<
-                  fun x ->
+                  fun s x ->
                     let ( $paCom_of_list ps$ ) = $G.aux_val name (G.to_arg id)$ x in
                     $G.apps <:expr@g< $lid:"proc_" ^ id$ >> (<:expr@g< s >>::es)$
                       (fun y -> Rpc_server.reply s ($G.aux_val name (G.of_res id)$ y))

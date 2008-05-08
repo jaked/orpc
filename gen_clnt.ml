@@ -110,7 +110,7 @@ let gen_clnt_ml name intf =
       | _ ->
           let (ps, es) = G.vars args in
           <:str_item@g<
-            let $lid:id$ = fun client ->
+            let $lid:id ^ "'async"$ = fun client ->
               $G.funs
                 ps
                 <:expr@g< fun pass_reply ->
