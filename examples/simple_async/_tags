@@ -1,0 +1,2 @@
+<*.ml*> : pkg_rpc, pkg_netplex, pkg_equeue
+<*.byte> : pkg_rpc, pkg_netplex, pkg_equeue

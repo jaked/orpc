@@ -56,6 +56,12 @@ let apps e es =
     e
     es
 
+let conses es =
+  List.fold_right
+    (fun e cs -> <:expr@g< $e$ :: $cs$ >>)
+    es
+  <:expr@g< [] >>
+
 let rec gen_type ?name t =
   let gen_type = gen_type ?name in
   match t with
@@ -103,34 +109,3 @@ let rec gen_type ?name t =
           | None -> <:ctyp@g< $lid:id$ >>
           | Some name -> <:ctyp@g< $uid:name$.$lid:id$ >>)
         args
-
-(*
-let sync_module_type name mt is =
-  let sync_item = function
-    | Function (_, id, args, res) ->
-        <:sig_item@g<
-          val $lid:id$ :
-            $List.fold_right
-            (fun a t -> <:ctyp@g< $gen_type a$ -> $t$ >>)
-            args
-            (gen_type res)$
-        >>
-
-    | Typedef ds ->
-        let ts =
-          List.map
-            (fun (_, vars, id, t) ->
-              let vars = List.map (fun v -> TyQuo (g, v)) vars in
-              TyDcl (g, id, vars, gen_type t, []))
-            ds in
-        SgTyp (g, tyAnd_of_list ts) in
-
-  match mt with
-    | Some mt -> <:module_type@g< $uid:name$.$uid:mt$ >>
-    | None ->
-        <:module_type@g<
-          sig
-            $sgSem_of_list (List.map sync_item is)$
-          end
-        >>
-*)

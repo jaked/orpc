@@ -60,11 +60,23 @@ let gen_clnt_mli name intf =
                   >>)
                 funcs)$ ;;
 
+          $sgSem_of_list
+            (List.map
+                (fun (_, id, args, res) ->
+                  <:sig_item@g<
+                    val $lid:id ^ "'async"$ : Rpc_client.t ->
+                      $G.arrows
+                        (List.mapi (fun _ i -> G.aux_type name (G.argi id i)) args)
+                        <:ctyp@g< ((unit -> $G.aux_type name (G.res id)$) -> unit) -> unit >>$
+                  >>)
+                funcs)$ ;;
+
           $modules$
         >>
 
 let gen_clnt_ml name intf =
-  let func (_, id, args, res) =
+
+  let sync_func (_, id, args, res) =
     match args with
       | [] -> assert false
       | [_] ->
@@ -83,6 +95,28 @@ let gen_clnt_ml name intf =
                   let arg = ($exCom_of_list es$) in
                   $G.aux_val name (G.to_res id)$
                     (Rpc_client.sync_call client $`str:id$ ($G.aux_val name (G.of_arg id)$ arg))
+                >>$
+          >> in
+
+  let async_func (_, id, args, res) =
+    match args with
+      | [] -> assert false
+      | [_] ->
+          <:str_item@g<
+            let $lid:id ^ "'async"$ = fun client arg pass_reply ->
+              Rpc_client.add_call client $`str:id$ ($G.aux_val name (G.of_arg id)$ arg)
+                (fun g -> pass_reply (fun () -> $G.aux_val name (G.to_res id)$ (g ())))
+          >>
+      | _ ->
+          let (ps, es) = G.vars args in
+          <:str_item@g<
+            let $lid:id$ = fun client ->
+              $G.funs
+                ps
+                <:expr@g< fun pass_reply ->
+                  let arg = ($exCom_of_list es$) in
+                  Rpc_client.add_call client $`str:id$ ($G.aux_val name (G.of_arg id)$ arg)
+                    (fun g -> pass_reply (fun () -> $G.aux_val name (G.to_res id)$ (g ())))
                 >>$
           >> in
 
@@ -131,7 +165,9 @@ let gen_clnt_ml name intf =
               mode2 =
             Rpc_client.create2 ?program_number ?version_number mode2 $G.aux_val name "program"$ esys ;;
 
-          $stSem_of_list (List.map func funcs)$ ;;
+          $stSem_of_list (List.map sync_func funcs)$ ;;
+
+          $stSem_of_list (List.map async_func funcs)$ ;;
 
           $modules$
         >>
