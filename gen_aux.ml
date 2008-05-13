@@ -7,32 +7,6 @@ let g = Camlp4.PreCast.Loc.ghost
 
 module G = Gen_common
 
-let rec strip_locs = function
-  | Var (_, id) -> Var (g, id)
-  | Unit _ -> Unit g
-  | Int _ -> Int g
-  | Int32 _ -> Int32 g
-  | Int64 _ -> Int64 g
-  | Float _ -> Float g
-  | Bool _ -> Bool g
-  | Char _ -> Char g
-  | String _ -> String g
-  | Tuple (_, parts) -> Tuple (g, List.map strip_locs parts)
-  | Record (_, fields) -> Record (g, List.map (fun (id,t) -> (id, strip_locs t)) fields)
-  | Variant (_, arms) -> Variant (g, List.map (fun (id,ts) -> (id, List.map strip_locs ts)) arms)
-  | Array (_, t) -> Array (g, strip_locs t)
-  | List (_, t) -> List (g, strip_locs t)
-  | Option (_, t) -> Option (g, strip_locs t)
-  | Apply (_, id, args) -> Apply (g, id, List.map strip_locs args)
-
-let id_digest id args =
-  match args with
-    | [] -> id
-    | _ ->
-        (* must strip locs since they affect digest *)
-        let args = List.map strip_locs args in
-        id ^ "_" ^ Digest.to_hex (Digest.string (S_ast.Show_typ.show_list args))
-
 let gen_aux_mli name intf =
   let gen_typedef ?name ds is =
     let is =
@@ -171,25 +145,10 @@ let rec gen_to ?name t x =
          <:expr@g< Array.map (fun x -> $gen_to t <:expr@g< x >>$) (Xdr.dest_xv_array $x$) >>
 
      | List (_, t) ->
-         <:expr@g<
-           let rec loop x =
-             match Xdr.dest_xv_union_over_enum_fast x with
-               | (0, _) -> []
-               | (1, x) ->
-                   (match Xdr.dest_xv_struct_fast x with
-                     | [| x0; x1 |] -> $gen_to t <:expr@g< x0 >>$ :: loop x1
-                     | _ -> assert false)
-               | _ -> assert false in
-           loop $x$
-         >>
+         <:expr@g< Orpc_xdr.to_list (fun x -> $gen_to t <:expr@g< x >>$) $x$ >>
 
      | Option (_, t) ->
-         <:expr@g<
-           match Xdr.dest_xv_union_over_enum_fast $x$ with
-             | (0, _) -> None
-             | (1, x) -> Some $gen_to t <:expr@g< x >>$
-             | _ -> assert false
-         >>
+         <:expr@g< Orpc_xdr.to_option (fun x -> $gen_to t <:expr@g< x >>$) $x$ >>
 
      | Apply (_, id, args) ->
          <:expr@g<
@@ -198,6 +157,8 @@ let rec gen_to ?name t x =
              (List.map (fun a -> <:expr@g< fun x -> $gen_to a <:expr@g< x >>$ >>) args)$
            $x$
          >>
+
+     | Arrow _ -> assert false
 
 let rec gen_of ?name t v =
   let gen_of = gen_of ?name in
@@ -266,20 +227,10 @@ let rec gen_of ?name t v =
          <:expr@g< Xdr.XV_array (Array.map (fun v -> $gen_of t <:expr@g< v >>$) $v$) >>
 
      | List (_, t) ->
-         <:expr@g<
-           let rec loop v =
-             match v with
-               | [] -> Xdr.XV_union_over_enum_fast (0, Xdr.XV_void)
-               | v0::v1 -> Xdr.XV_union_over_enum_fast (1, Xdr.XV_struct_fast [| $gen_of t <:expr@g< v0 >>$; loop v1 |]) in
-           loop $v$
-         >>
+         <:expr@g< Orpc_xdr.of_list (fun v -> $gen_of t <:expr@g< v >>$) $v$ >>
 
      | Option (_, t) ->
-         <:expr@g<
-           match $v$ with
-             | None -> Xdr.XV_union_over_enum_fast (0, Xdr.XV_void)
-             | Some v -> Xdr.XV_union_over_enum_fast (1, $gen_of t <:expr@g< v >>$)
-         >>
+         <:expr@g< Orpc_xdr.of_option (fun v -> $gen_of t <:expr@g< v >>$) $v$ >>
 
      | Apply (_, id, args) ->
          <:expr@g<
@@ -289,6 +240,8 @@ let rec gen_of ?name t v =
            $v$
          >>
 
+     | Arrow _ -> assert false
+
 (*
   this is kind of hairy because Xdr.xdr_type_term doesn't have a nice
   way to express mutual recursion and polymorphism. the basic problem
@@ -296,8 +249,7 @@ let rec gen_of ?name t v =
   recursive loop, for forward references in mutual recursion you have
   to inline a copy of the term you're referring to. polymorphism
   complicates things: ordinarily we express it at the OCaml level, but
-  when we inline a term we have to instantiate it explicitly, and we must
-  distinguish between different instantiations.
+  when we inline a term we have to instantiate it explicitly.
 
   some ways out of this (requiring Xdr modifications):
 
@@ -330,13 +282,7 @@ let rec gen_xdr vs bs ds t =
     | Int64 _ -> <:expr@g< Xdr.X_hyper >>
     | Float _ -> <:expr@g< Xdr.X_double >>
     | Bool _ -> <:expr@g< Xdr.x_bool >>
-    | Char _ -> <:expr@g<
-        Xdr.X_enum (let rec loop n =
-                      if n = 256 then []
-                      else (String.make 1 (char_of_int n), Rtypes.int4_of_int n)::loop (n + 1) in
-                    loop 0)
-        >>
-
+    | Char _ -> <:expr@g< Orpc_xdr.x_char >>
     | String _ -> <:expr@g< Xdr.x_string_max >>
 
     | Tuple (_, parts) ->
@@ -363,34 +309,22 @@ let rec gen_xdr vs bs ds t =
             None)
         >>
 
-    | Array (_, t) ->
-        <:expr@g< Xdr.x_array_max $gx t$ >>
+    | Array (_, t) -> <:expr@g< Xdr.x_array_max $gx t$ >>
 
-    | List (_, t) ->
-        <:expr@g<
-          Xdr.X_rec ("list",
-                    Xdr.X_union_over_enum
-                      (Xdr.x_bool,
-                      ["FALSE", Xdr.X_void;
-                       "TRUE", Xdr.X_struct ["0", $gx t$; "1", Xdr.X_refer "list"]],
-                      None))
-        >>
+    | List (_, t) -> <:expr@g< Orpc_xdr.x_list $gx t$ >>
 
-    | Option (_, t) ->
-        <:expr@g< Xdr.x_optional $gx t$ >>
+    | Option (_, t) -> <:expr@g< Xdr.x_optional $gx t$ >>
 
     | Apply (_, id, args) ->
-        let bid = id_digest id args in
-
-        if List.mem bid bs
-        (* refer to a def in scope with same args. *)
-        then <:expr@g< Xdr.X_refer $`str:bid$ >>
+        if List.mem id bs
+        (* refer to a def in scope *)
+        then <:expr@g< Xdr.X_refer $`str:id$ >>
 
         else begin
           try
             let (_, vars, _, t) = List.find (fun (_,_,id',_) -> id' = id) ds in
             (* inline / instantiate a forward def. can just replace vs because defs have no free variables. *)
-            gen_xdr_def (List.combine vars (List.map gx args)) bs ds bid t
+            gen_xdr_def (List.combine vars (List.map gx args)) bs ds id t
 
           with Not_found ->
             (* refer to a previous def at the OCaml level *)
@@ -398,6 +332,8 @@ let rec gen_xdr vs bs ds t =
               <:expr@g< $lid:G.xdr id$ >>
               (List.map gx args)
         end
+
+     | Arrow _ -> assert false
 
 and gen_xdr_def vs bs ds id t =
   <:expr@g< Xdr.X_rec ($`str:id$, $gen_xdr vs (id::bs) ds t$) >>
@@ -431,14 +367,12 @@ let gen_aux_ml name intf =
     let rec loop ds =
       match ds with
         | [] -> []
-        | (_, vars, id, t)::ds as ds' ->
+        | (_, vars, id, t)::ds ->
             <:binding@g<
               $lid:G.xdr id$ =
               $G.funs_ids
                 (List.map G.xdr_p vars)
-                (let bid = id_digest id (List.map (fun v -> Var (g, v)) vars) in
-                 (* ds' includes current def for polymorphic instantiation *)
-                 gen_xdr_def [] [] ds' bid t)$
+                (gen_xdr_def [] [] ds id t)$
             >> :: loop ds in
     let is = List.map (fun b -> StVal (g, BFalse, b)) (loop ds) @ is in
 

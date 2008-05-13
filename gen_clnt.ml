@@ -8,23 +8,32 @@ module G = Gen_common
 let g = Camlp4.PreCast.Loc.ghost
 
 let gen_clnt_mli name intf =
+
   let modules =
     match intf with
       | Simple _ -> <:sig_item@g< >>
 
-      | Modules (_, (_, sync_name, _), None) ->
+      | Modules (_, (_, mname, _), _) ->
           <:sig_item@g<
-            module Sync(C : sig val with_client : (Rpc_client.t -> 'a) -> 'a end) : $uid:name$.$uid:sync_name$
-          >>
-      | Modules (_, (_, sync_name, _), Some (_, async_name, _)) ->
-          <:sig_item@g<
-            module Sync(C : sig val with_client : (Rpc_client.t -> 'a) -> 'a end) : $uid:name$.$uid:sync_name$;;
-            module Async(C : sig val with_client : (Rpc_client.t -> 'a) -> 'a end) : $uid:name$.$uid:async_name$;;
+            module Sync(C : sig val with_client : (Rpc_client.t -> 'a) -> 'a end) :
+              $uid:name$.$uid:mname$
           >> in
+
+  let modules =
+    match intf with
+      | Modules (_, _, Some (_, mname, _)) ->
+          <:sig_item@g<
+            $modules$ ;;
+            module Async(C : sig val with_client : (Rpc_client.t -> 'a) -> 'a end) :
+              $uid:name$.$uid:mname$;;
+          >>
+
+      | _ -> modules in
 
   match intf with
     | Simple (_, funcs)
     | Modules (_, (_, _, funcs), _) ->
+
        <:sig_item@g<
           val create_client :
             ?esys:Unixqueue.event_system ->
@@ -77,56 +86,50 @@ let gen_clnt_mli name intf =
 let gen_clnt_ml name intf =
 
   let sync_func (_, id, args, res) =
-    match args with
-      | [] -> assert false
-      | [_] ->
-          <:str_item@g<
-            let $lid:id$ = fun client arg ->
-              $G.aux_val name (G.to_res id)$
-                (Rpc_client.sync_call client $`str:id$ ($G.aux_val name (G.of_arg id)$ arg))
-          >>
-      | _ ->
-          let (ps, es) = G.vars args in
-          <:str_item@g<
-            let $lid:id$ = fun client ->
-              $G.funs
-                ps
-                <:expr@g<
-                  let arg = ($exCom_of_list es$) in
-                  $G.aux_val name (G.to_res id)$
-                    (Rpc_client.sync_call client $`str:id$ ($G.aux_val name (G.of_arg id)$ arg))
-                >>$
-          >> in
+    (fun body ->
+      <:str_item@g<
+        let $lid:id$ = fun client ->
+          $match args with
+            | [] -> assert false
+            | [_] -> <:expr@g< fun arg -> $body$ >>
+            | _ ->
+                let (ps, es) = G.vars args in
+                G.funs
+                  ps
+                <:expr@g< let arg = ($exCom_of_list es$) in $body$ >>$
+      >>)
+      <:expr@g<
+        $G.aux_val name (G.to_res id)$
+          (Rpc_client.sync_call client $`str:id$ ($G.aux_val name (G.of_arg id)$ arg))
+      >> in
 
   let async_func (_, id, args, res) =
-    match args with
-      | [] -> assert false
-      | [_] ->
-          <:str_item@g<
-            let $lid:id ^ "'async"$ = fun client arg pass_reply ->
-              Rpc_client.add_call client $`str:id$ ($G.aux_val name (G.of_arg id)$ arg)
-                (fun g -> pass_reply (fun () -> $G.aux_val name (G.to_res id)$ (g ())))
-          >>
-      | _ ->
-          let (ps, es) = G.vars args in
-          <:str_item@g<
-            let $lid:id ^ "'async"$ = fun client ->
-              $G.funs
-                ps
-                <:expr@g< fun pass_reply ->
-                  let arg = ($exCom_of_list es$) in
-                  Rpc_client.add_call client $`str:id$ ($G.aux_val name (G.of_arg id)$ arg)
-                    (fun g -> pass_reply (fun () -> $G.aux_val name (G.to_res id)$ (g ())))
-                >>$
-          >> in
+    (fun body ->
+      <:str_item@g<
+        let $lid:id ^ "'async"$ = fun client ->
+          $match args with
+            | [] -> assert false
+            | [_] -> <:expr@g< fun arg pass_reply -> $body$ >>
+            | _ ->
+                let (ps, es) = G.vars args in
+                G.funs
+                  ps
+                  <:expr@g< fun pass_reply ->
+                    let arg = ($exCom_of_list es$) in $body$
+                  >>$
+      >>)
+      <:expr@g<
+        Rpc_client.add_call client $`str:id$ ($G.aux_val name (G.of_arg id)$ arg)
+          (fun g -> pass_reply (fun () -> $G.aux_val name (G.to_res id)$ (g ())))
+      >> in
 
   let modules =
     match intf with
       | Simple _ -> <:str_item@g< >>
 
-      | Modules (_, (_, sync_name, sync_funcs), _) ->
+      | Modules (_, (_, _, funcs), _) ->
 
-          let sync_func (_, id, args, res) =
+          let func (_, id, args, res) =
             let (ps, es) = G.vars args in
             <:str_item@g<
               let $lid:id$ =
@@ -136,12 +139,39 @@ let gen_clnt_ml name intf =
             >> in
 
           <:str_item@g<
-          module Sync(C : sig val with_client : (Rpc_client.t -> 'a) -> 'a end) =
-          struct
-            $stSem_of_list (List.map sync_func sync_funcs)$
-          end
+            module Sync(C : sig val with_client : (Rpc_client.t -> 'a) -> 'a end) =
+            struct
+              $stSem_of_list (List.map func funcs)$
+            end
           >> in
 
+  let modules =
+    match intf with
+      | Modules (_, (_, _, funcs), Some _) ->
+
+          let func (_, id, args, res) =
+            let (ps, es) = G.vars args in
+            <:str_item@g<
+              let $lid:id$ =
+                $G.funs
+                  ps
+                  <:expr@g<
+                    fun pass_reply ->
+                      C.with_client
+                        (fun c -> $G.apps <:expr@g< $lid:id ^ "'async"$ c >> es$ (fun r -> pass_reply (r ())))
+                  >>$
+            >> in
+
+          <:str_item@g<
+            $modules$ ;;
+
+            module Async(C : sig val with_client : (Rpc_client.t -> 'a) -> 'a end) =
+            struct
+              $stSem_of_list (List.map func funcs)$
+            end
+          >>
+
+      | _ -> modules in
 
   match intf with
     | Simple (_, funcs)

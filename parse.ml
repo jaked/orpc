@@ -60,6 +60,8 @@ let rec parse_type t =
 
     | TyMan (_, _, t) -> parse_type t
 
+    | <:ctyp@loc< $t1$ -> $t2$ >> -> Arrow (loc, parse_type t1, parse_type t2)
+
     | t -> ctyp_error t "unsupported type"
 
 let parse_typedef loc t =

@@ -8,13 +8,14 @@ module G = Gen_common
 let g = Camlp4.PreCast.Loc.ghost
 
 let gen_srv_mli name intf =
+
   let modules =
     match intf with
       | Simple _ -> <:sig_item@g< >>
 
-      | Modules (_, (_, sync_name, _), _) ->
+      | Modules (_, (_, mname, _), _) ->
           <:sig_item@g<
-            module Sync : functor (A : $uid:name$.$uid:sync_name$) ->
+            module Sync : functor (A : $uid:name$.$uid:mname$) ->
             sig
               val bind :
                 ?program_number:Rtypes.uint4 ->
@@ -23,9 +24,26 @@ let gen_srv_mli name intf =
             end
           >> in
 
+  let modules =
+    match intf with
+      | Modules (_, _, Some (_, mname, _)) ->
+          <:sig_item@g<
+            $modules$ ;;
+
+            module Async : functor (A : $uid:name$.$uid:mname$) ->
+            sig
+              val bind :
+                ?program_number:Rtypes.uint4 ->
+                ?version_number:Rtypes.uint4 ->
+                Rpc_server.t -> unit
+            end
+          >>
+      | _ -> modules in
+
   match intf with
     | Simple (_, funcs)
     | Modules (_, (_, _, funcs), _) ->
+
         <:sig_item@g<
           val bind :
             ?program_number:Rtypes.uint4 ->
@@ -42,8 +60,6 @@ let gen_srv_mli name intf =
               funcs
               <:ctyp@g< Rpc_server.t -> unit >>$ ;;
 
-          $modules$
-
           val bind_async :
             ?program_number:Rtypes.uint4 ->
             ?version_number:Rtypes.uint4 ->
@@ -59,6 +75,8 @@ let gen_srv_mli name intf =
                 >>)
               funcs
               <:ctyp@g< Rpc_server.t -> unit >>$ ;;
+
+          $modules$
         >>
 
 
@@ -69,59 +87,53 @@ let gen_srv_ml name intf =
     <:expr@g<
       Rpc_server.Sync {
         Rpc_server.sync_name = $`str:id$;
-        Rpc_server.sync_proc =
+        Rpc_server.sync_proc = fun x ->
           $match args with
             | [] -> assert false
             | [_] ->
                 <:expr@g<
-                  fun x ->
-                    $G.aux_val name (G.of_res id)$
-                      ($lid:"proc_" ^ id$
-                          ($G.aux_val name (G.to_arg id)$ x))
+                  $G.aux_val name (G.of_res id)$
+                    ($lid:"proc_" ^ id$ ($G.aux_val name (G.to_arg id)$ x))
                 >>
             | _ ->
                 let (ps, es) = G.vars args in
                 <:expr@g<
-                  fun x ->
-                    let ( $paCom_of_list ps$ ) = $G.aux_val name (G.to_arg id)$ x in
-                    $G.aux_val name (G.of_res id)$
-                      $G.apps <:expr@g< $lid:"proc_" ^ id$ >> es$
+                  let ( $paCom_of_list ps$ ) = $G.aux_val name (G.to_arg id)$ x in
+                  $G.aux_val name (G.of_res id)$
+                    $G.apps <:expr@g< $lid:"proc_" ^ id$ >> es$
                 >>$
       }
     >> in
 
   let async_func (_, id, args, _) =
-    <:expr@g<
-      Rpc_server.Async {
-        Rpc_server.async_name = $`str:id$;
-        Rpc_server.async_invoke =
-          $match args with
-            | [] -> assert false
-            | [_] ->
-                <:expr@g<
-                  fun s x ->
-                    $lid:"proc_" ^ id$
-                      s ($G.aux_val name (G.to_arg id)$ x)
-                      (fun y -> Rpc_server.reply s ($G.aux_val name (G.of_res id)$ y))
-                >>
-            | _ ->
-                let (ps, es) = G.vars args in
-                <:expr@g<
-                  fun s x ->
+    (fun body ->
+      <:expr@g<
+        Rpc_server.Async {
+          Rpc_server.async_name = $`str:id$;
+          Rpc_server.async_invoke = fun s x ->
+            $match args with
+              | [] -> assert false
+              | [_] ->
+                  <:expr@g<
+                    $lid:"proc_" ^ id$ s ($G.aux_val name (G.to_arg id)$ x) $body$
+                  >>
+              | _ ->
+                  let (ps, es) = G.vars args in
+                  <:expr@g<
                     let ( $paCom_of_list ps$ ) = $G.aux_val name (G.to_arg id)$ x in
-                    $G.apps <:expr@g< $lid:"proc_" ^ id$ >> (<:expr@g< s >>::es)$
-                      (fun y -> Rpc_server.reply s ($G.aux_val name (G.of_res id)$ y))
-                >>$
-      }
-    >> in
+                    $G.apps <:expr@g< $lid:"proc_" ^ id$ s >> es$ $body$
+                  >>$
+        }
+      >>)
+      <:expr@g< (fun y -> Rpc_server.reply s ($G.aux_val name (G.of_res id)$ y)) >> in
 
   let modules =
     match intf with
       | Simple _ -> <:str_item@g< >>
 
-      | Modules (_, (_, sync_name, funcs), _) ->
+      | Modules (_, (_, mname, funcs), _) ->
           <:str_item@g<
-            module Sync (A : $uid:name$.$uid:sync_name$) =
+            module Sync (A : $uid:name$.$uid:mname$) =
             struct
               let bind
                   ?program_number
@@ -140,9 +152,36 @@ let gen_srv_ml name intf =
             end
           >> in
 
+  let modules =
+    match intf with
+      | Modules (_, _, Some (_, mname, funcs)) ->
+          <:str_item@g<
+            $modules$ ;;
+
+            module Async (A : $uid:name$.$uid:mname$) =
+            struct
+              let bind
+                  ?program_number
+                  ?version_number
+                  srv =
+                $List.fold_left
+                  (fun e (_, id, _, _) ->
+                    Ast.ExApp(g,
+                             e,
+                             Ast.ExLab (g,
+                                       "proc_" ^ id,
+                                       <:expr@g< fun _s -> A.$lid:id$ >>)))
+                  <:expr@g< bind_async ?program_number ?version_number >>
+                  funcs$ srv
+            end
+          >>
+
+      | _ -> modules in
+
   match intf with
     | Simple (_, funcs)
     | Modules (_, (_, _, funcs), _) ->
+
         <:str_item@g<
           let bind
               ?program_number

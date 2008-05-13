@@ -1,0 +1,6 @@
+name="Orpc"
+version="0.1"
+description="OCaml RPC generator"
+requires="rpc"
+archive(byte) = "orpc_lib.cma"
+archive(native) = "orpc_lib.cmxa"

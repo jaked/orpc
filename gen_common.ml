@@ -109,3 +109,5 @@ let rec gen_type ?name t =
           | None -> <:ctyp@g< $lid:id$ >>
           | Some name -> <:ctyp@g< $uid:name$.$lid:id$ >>)
         args
+
+  | Arrow _ -> assert false
