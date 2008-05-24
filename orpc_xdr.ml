@@ -40,3 +40,37 @@ let of_option of'a v =
   match v with
     | None -> Xdr.XV_union_over_enum_fast (0, Xdr.XV_void)
     | Some v -> Xdr.XV_union_over_enum_fast (1, of'a v)
+
+(* 'b is always exn but the dummy param lets us pass in {of|to|xdr}_exn *)
+type ('a, 'b) orpc_result = Orpc_success of 'a | Orpc_failure of exn
+
+let to_orpc_result to'a to'b x =
+  match Xdr.dest_xv_union_over_enum_fast x with
+    | (0, x) -> Orpc_success (to'a x)
+    | (1, x) -> Orpc_failure (to'b x)
+    | _ -> assert false
+
+let of_orpc_result of'a of'b x =
+  match x with
+    | Orpc_success x -> Xdr.XV_union_over_enum_fast (0, of'a x)
+    | Orpc_failure x -> Xdr.XV_union_over_enum_fast (1, of'b x)
+
+let xdr_orpc_result xdr'a xdr'b =
+  Xdr.X_rec ("orpc_result",
+            Xdr.X_union_over_enum
+              (Xdr.X_enum [ ("Orpc_success", (Rtypes.int4_of_int 0));
+                            ("Orpc_failure", (Rtypes.int4_of_int 1)) ],
+              [ ("Orpc_success", xdr'a); ("Orpc_failure", xdr'b) ], None))
+
+let pack_orpc_result f =
+  try Orpc_success (f ())
+  with e -> Orpc_failure e
+
+let pack_orpc_result_async f k =
+  try f (fun r -> k (Orpc_success r))
+  with e -> k (Orpc_failure e)
+
+let unpack_orpc_result v =
+  match v with
+    | Orpc_success v -> v
+    | Orpc_failure e -> raise e

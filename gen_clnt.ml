@@ -13,7 +13,7 @@ let gen_clnt_mli name intf =
     match intf with
       | Simple _ -> <:sig_item@g< >>
 
-      | Modules (_, (_, mname, _), _) ->
+      | Modules (_, _, (_, mname, _), _) ->
           <:sig_item@g<
             module Sync(C : sig val with_client : (Rpc_client.t -> 'a) -> 'a end) :
               $uid:name$.$uid:mname$
@@ -21,7 +21,7 @@ let gen_clnt_mli name intf =
 
   let modules =
     match intf with
-      | Modules (_, _, Some (_, mname, _)) ->
+      | Modules (_, _, _, Some (_, mname, _)) ->
           <:sig_item@g<
             $modules$ ;;
             module Async(C : sig val with_client : (Rpc_client.t -> 'a) -> 'a end) :
@@ -31,10 +31,10 @@ let gen_clnt_mli name intf =
       | _ -> modules in
 
   match intf with
-    | Simple (_, funcs)
-    | Modules (_, (_, _, funcs), _) ->
+    | Simple (_, excs, funcs)
+    | Modules (_, excs, (_, _, funcs), _) ->
 
-       <:sig_item@g<
+        <:sig_item@g<
           val create_client :
             ?esys:Unixqueue.event_system ->
             ?program_number:Rtypes.uint4 ->
@@ -64,8 +64,10 @@ let gen_clnt_mli name intf =
                   <:sig_item@g<
                     val $lid:id$ : Rpc_client.t ->
                       $G.arrows
-                        (List.mapi (fun _ i -> G.aux_type name (G.argi id i)) args)
-                        (G.aux_type name (G.res id))$
+                        (List.mapi
+                            (fun a i -> G.labelled_ctyp a (G.aux_type name (G.argi id i)))
+                            args)
+                        (G.aux_type name (G.res0 id))$
                   >>)
                 funcs)$ ;;
 
@@ -75,8 +77,10 @@ let gen_clnt_mli name intf =
                   <:sig_item@g<
                     val $lid:id ^ "'async"$ : Rpc_client.t ->
                       $G.arrows
-                        (List.mapi (fun _ i -> G.aux_type name (G.argi id i)) args)
-                        <:ctyp@g< ((unit -> $G.aux_type name (G.res id)$) -> unit) -> unit >>$
+                        (List.mapi
+                            (fun a i -> G.labelled_ctyp a (G.aux_type name (G.argi id i)))
+                            args)
+                        <:ctyp@g< ((unit -> $G.aux_type name (G.res0 id)$) -> unit) -> unit >>$
                   >>)
                 funcs)$ ;;
 
@@ -85,57 +89,74 @@ let gen_clnt_mli name intf =
 
 let gen_clnt_ml name intf =
 
-  let sync_func (_, id, args, res) =
+  let sync_func ~has_excs (_, id, args, res) =
     (fun body ->
       <:str_item@g<
         let $lid:id$ = fun client ->
           $match args with
             | [] -> assert false
-            | [_] -> <:expr@g< fun arg -> $body$ >>
+            | [a] -> <:expr@g< fun $G.labelled_patt a <:patt@g< arg >>$ -> $body$ >>
             | _ ->
                 let (ps, es) = G.vars args in
                 G.funs
-                  ps
-                <:expr@g< let arg = ($exCom_of_list es$) in $body$ >>$
+                  (List.map2 G.labelled_patt args ps)
+                  <:expr@g< let arg = ($exCom_of_list es$) in $body$ >>$
       >>)
-      <:expr@g<
-        $G.aux_val name (G.to_res id)$
+      ((fun body2 ->
+          if has_excs
+          then <:expr@g< Orpc_xdr.unpack_orpc_result $body2$ >>
+          else body2)
+        <:expr@g<
+          $G.aux_val name (G.to_res id)$
           (Rpc_client.sync_call client $`str:id$ ($G.aux_val name (G.of_arg id)$ arg))
-      >> in
+        >>) in
 
-  let async_func (_, id, args, res) =
+  let async_func ~has_excs (_, id, args, res) =
     (fun body ->
       <:str_item@g<
         let $lid:id ^ "'async"$ = fun client ->
           $match args with
             | [] -> assert false
-            | [_] -> <:expr@g< fun arg pass_reply -> $body$ >>
+            | [a] -> <:expr@g< fun $G.labelled_patt a <:patt@g< arg >>$ pass_reply -> $body$ >>
             | _ ->
                 let (ps, es) = G.vars args in
                 G.funs
-                  ps
+                  (List.map2 G.labelled_patt args ps)
                   <:expr@g< fun pass_reply ->
                     let arg = ($exCom_of_list es$) in $body$
                   >>$
       >>)
-      <:expr@g<
-        Rpc_client.add_call client $`str:id$ ($G.aux_val name (G.of_arg id)$ arg)
+      (if has_excs
+      then
+        <:expr@g<
+          Rpc_client.add_call client $`str:id$ ($G.aux_val name (G.of_arg id)$ arg)
+          (fun g -> pass_reply (fun () -> Orpc_xdr.unpack_orpc_result ($G.aux_val name (G.to_res id)$ (g ()))))
+        >>
+      else
+        <:expr@g<
+          Rpc_client.add_call client $`str:id$ ($G.aux_val name (G.of_arg id)$ arg)
           (fun g -> pass_reply (fun () -> $G.aux_val name (G.to_res id)$ (g ())))
-      >> in
+        >>) in
 
   let modules =
     match intf with
       | Simple _ -> <:str_item@g< >>
 
-      | Modules (_, (_, _, funcs), _) ->
+      | Modules (_, _, (_, _, funcs), _) ->
 
           let func (_, id, args, res) =
             let (ps, es) = G.vars args in
             <:str_item@g<
               let $lid:id$ =
                 $G.funs
-                  ps
-                  <:expr@g< C.with_client (fun c -> $G.apps <:expr@g< $lid:id$ c >> es$) >>$
+                  (List.map2 G.labelled_patt args ps)
+                  <:expr@g<
+                    C.with_client
+                      (fun c ->
+                        $G.apps
+                          <:expr@g< $lid:id$ c >>
+                          (List.map2 G.labelled_expr args es)$)
+                  >>$
             >> in
 
           <:str_item@g<
@@ -147,18 +168,22 @@ let gen_clnt_ml name intf =
 
   let modules =
     match intf with
-      | Modules (_, (_, _, funcs), Some _) ->
+      | Modules (_, _, (_, _, funcs), Some _) ->
 
           let func (_, id, args, res) =
             let (ps, es) = G.vars args in
             <:str_item@g<
               let $lid:id$ =
                 $G.funs
-                  ps
+                  (List.map2 G.labelled_patt args ps)
                   <:expr@g<
                     fun pass_reply ->
                       C.with_client
-                        (fun c -> $G.apps <:expr@g< $lid:id ^ "'async"$ c >> es$ (fun r -> pass_reply (r ())))
+                        (fun c ->
+                          $G.apps
+                            <:expr@g< $lid:id ^ "'async"$ c >>
+                            (List.map2 G.labelled_expr args es)$
+                          pass_reply)
                   >>$
             >> in
 
@@ -174,8 +199,11 @@ let gen_clnt_ml name intf =
       | _ -> modules in
 
   match intf with
-    | Simple (_, funcs)
-    | Modules (_, (_, _, funcs), _) ->
+    | Simple (_, excs, funcs)
+    | Modules (_, excs, (_, _, funcs), _) ->
+
+        let has_excs = excs <> [] in
+
         <:str_item@g<
           let create_client
               ?(esys = Unixqueue.create_unix_event_system())
@@ -195,9 +223,9 @@ let gen_clnt_ml name intf =
               mode2 =
             Rpc_client.create2 ?program_number ?version_number mode2 $G.aux_val name "program"$ esys ;;
 
-          $stSem_of_list (List.map sync_func funcs)$ ;;
+          $stSem_of_list (List.map (sync_func ~has_excs) funcs)$ ;;
 
-          $stSem_of_list (List.map async_func funcs)$ ;;
+          $stSem_of_list (List.map (async_func ~has_excs) funcs)$ ;;
 
           $modules$
         >>

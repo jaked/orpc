@@ -10,7 +10,7 @@ let start() =
     [ Rpc_netplex.rpc_factory
         ~configure:(fun _ _ -> ())
         ~name:"add1"
-        ~setup:(fun srv () -> let module M = Modules_srv.Sync(Server_impl.Server) in M.bind srv)
+        ~setup:(fun srv () -> let module M = Protocol_srv.Sync(Server_impl.Server) in M.bind srv)
         ();
     ]
   in

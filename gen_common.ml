@@ -8,6 +8,7 @@ let g = Camlp4.PreCast.Loc.ghost
 let arg id = id ^ "'arg"
 let argi id i = id ^ "'arg" ^ string_of_int i
 let res id = id ^ "'res"
+let res0 id = id ^ "'res0"
 let xdr id = "xdr_" ^ id
 let xdr_p id = "xdr'" ^ id
 let xdr_arg id = "xdr_" ^ id ^ "'arg"
@@ -23,6 +24,7 @@ let of_res id = "of_" ^ id ^ "'res"
 
 let aux_type name id = <:ctyp@g<$uid:name ^ "_aux"$ . $lid:id$>>
 let aux_val name id = <:expr@g<$uid:name ^ "_aux"$ . $lid:id$>>
+let aux_patt name id p = <:patt@g<$uid:name ^ "_aux"$ . $uid:id$ $p$>>
 
 let vars l =
   let ps = List.mapi (fun _ i -> <:patt@g< $lid:"x" ^ string_of_int i$ >>) l in
@@ -102,12 +104,32 @@ let rec gen_type ?name t =
   | List (_, t) -> <:ctyp@g< $gen_type t$ list >>
   | Option (_, t) -> <:ctyp@g< $gen_type t$ option >>
 
-  | Apply (_, id, args) ->
+  | Apply (_, mdl, id, args) ->
       List.fold_left
         (fun t a -> <:ctyp@g< $gen_type a$ $t$ >>)
-        (match name with
-          | None -> <:ctyp@g< $lid:id$ >>
-          | Some name -> <:ctyp@g< $uid:name$.$lid:id$ >>)
+        (match mdl, name, id with
+          | _, _, "exn" (* hack *)
+          | None, None, _ -> <:ctyp@g< $lid:id$ >>
+          | None, Some name, _
+          | Some name, _, _ -> <:ctyp@g< $uid:name$.$lid:id$ >>)
         args
 
   | Arrow _ -> assert false
+
+let labelled_ctyp at t =
+  match at with
+    | Unlabelled _ -> t
+    | Labelled (_, label, _) -> TyLab (g, label, t)
+    | Optional (_, label, _) -> TyOlb (g, label, t)
+
+let labelled_patt at p =
+  match at with
+    | Unlabelled _ -> p
+    | Labelled (_, label, _) -> PaLab (g, label, p)
+    | Optional (_, label, _) -> PaOlb (g, label, p)
+
+let labelled_expr at e =
+  match at with
+    | Unlabelled _ -> e
+    | Labelled (_, label, _) -> ExLab (g, label, e)
+    | Optional (_, label, _) -> ExOlb (g, label, e)

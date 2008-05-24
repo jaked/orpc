@@ -15,7 +15,7 @@ let rec parse_type t =
     | <:ctyp@loc< string >> -> String loc
 
     | <:ctyp@loc< '$v$ >> -> Var (loc, v)
-    | <:ctyp@loc< $lid:id$ >> -> Apply (loc, id, [])
+    | <:ctyp@loc< $lid:id$ >> -> Apply (loc, None, id, [])
 
     (* I don't see how to do this one with quotations; $t1$ * $t2$
        gives both the TyTup and the TySta *)
@@ -54,7 +54,7 @@ let rec parse_type t =
         let rec apps args = function
             (* TyApp is used for both tupled and nested type application *)
           | <:ctyp< $t2$ $t1$ >> -> apps (parse_type t2 :: args) t1
-          | <:ctyp< $lid:id$ >> -> Apply (loc, id, args)
+          | <:ctyp< $lid:id$ >> -> Apply (loc, None, id, args)
           | t -> ctyp_error t "expected TyApp or TyId" in
         apps [] t
 
@@ -80,22 +80,34 @@ let parse_typedef loc t =
     | t -> ctyp_error t "expected type declaration" in
   types t []
 
+let parse_exception loc t =
+  match t with
+    | <:ctyp< $uid:id$ of $t$ >> ->
+      let rec parts = function
+        | <:ctyp< $t1$ and $t2$ >> -> parts t1 @ parts t2
+        | t -> [ parse_type t ] in
+      (loc, id, parts t )
+    | <:ctyp< $uid:id$ >> -> (loc, id, [])
+    | t -> ctyp_error t "expected TyOr, TyOf, or TyId"
+
 let parse_val loc id t =
   let rec args t a =
     match t with
-      | TyArr (_, t1, t2) -> parse_type t1 :: args t2 a
-      | t -> parse_type t ::a in
-  begin
-    match args t [] with
-      | []
-      | [_] -> loc_error loc "function must have at least one argument"
-      | args ->
-          let rargs = List.rev args in
-          (loc, id, List.rev (List.tl rargs), List.hd rargs)
-  end
+      | TyArr (_, t1, t2) ->
+          let arg =
+            match t1 with
+              | TyLab (loc, label, t1) -> Labelled (loc, label, parse_type t1)
+              | TyOlb (loc, label, t1) -> Optional (loc, label, parse_type t1)
+              | _ -> Unlabelled (loc_of_ctyp t1, parse_type t1) in
+          args t2 (arg :: a)
+      | t -> List.rev a, parse_type t in
+  match args t [] with
+    | [], _ -> loc_error loc "function must have at least one argument"
+    | args, ret -> (loc, id, args, ret)
 
 type s = {
   typedefs : typedef list;
+  exceptions : exc list;
   funcs : func list;
   module_types : module_type list;
 }
@@ -104,9 +116,10 @@ let rec parse_sig_items i a =
   match i with
     | SgNil _ -> a
     | SgSem (_, i1, i2) -> parse_sig_items i1 (parse_sig_items i2 a)
-    | SgTyp (loc, t) -> { a with typedefs = parse_typedef loc t ::a.typedefs }
-    | SgVal (loc, id, t) -> { a with funcs = parse_val loc id t ::a.funcs }
-    | SgMty (loc, id, MtSig (_, i)) -> { a with module_types = parse_module_type loc id i ::a.module_types }
+    | SgTyp (loc, t) -> { a with typedefs = parse_typedef loc t :: a.typedefs }
+    | SgExc (loc, t) -> { a with exceptions = parse_exception loc t :: a.exceptions }
+    | SgVal (loc, id, t) -> { a with funcs = parse_val loc id t :: a.funcs }
+    | SgMty (loc, id, MtSig (_, i)) -> { a with module_types = parse_module_type loc id i :: a.module_types }
     | i -> sig_item_error i "expected type, function declaration, or module type"
 
 and parse_module_type loc id i =
@@ -114,14 +127,16 @@ and parse_module_type loc id i =
     match i with
       | SgNil _ -> a
       | SgSem (_, i1, i2) -> parse_sig_items i1 (parse_sig_items i2 a)
-      | SgVal (loc, id, t) -> parse_val loc id t ::a
+      | SgVal (loc, id, t) -> parse_val loc id t :: a
       | i -> sig_item_error i "expected function declaration" in
   (loc, id, parse_sig_items i [])
 
 let parse_interface i =
-  let a = { typedefs = []; funcs = []; module_types = [] } in
-  match parse_sig_items i a with
-    | { typedefs = tds; funcs = []; module_types = [ sync ] } -> Modules (tds, sync, None)
-    | { typedefs = tds; funcs = []; module_types = [ sync; async ] } -> Modules (tds, sync, Some async)
-    | { typedefs = tds; funcs = funcs; module_types = [] } -> Simple (tds, funcs)
-    | _ -> loc_error Camlp4.PreCast.Loc.ghost "expected simple interface or modules interface"
+  let s = { typedefs = []; exceptions = []; funcs = []; module_types = [] } in
+  let s = parse_sig_items i s in
+  let { typedefs = tds; exceptions = excs; funcs = funcs } = s in
+  match s with
+    | { funcs = []; module_types = [ sync ] } -> Modules (tds, excs, sync, None)
+    | { funcs = []; module_types = [ sync; async ] } -> Modules (tds, excs, sync, Some async)
+    | { module_types = [] } -> Simple (tds, excs, funcs)
+    | _ -> loc_error Loc.ghost "expected simple interface or modules interface"

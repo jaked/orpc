@@ -7,16 +7,29 @@ let g = Camlp4.PreCast.Loc.ghost
 
 module G = Gen_common
 
+let orpc_result =
+  g,
+  ["a", "b"],
+  "orpc_result",
+  Variant (g, ["Orpc_success", [Var (g, "a")];
+               "Orpc_failure", [Var (g, "b")]])
+
+let typ_of_argtyp_option = function
+  | Unlabelled (_, t) -> t
+  | Labelled (_, _, t) -> t
+  | Optional (loc, _, t) -> Option (loc, t)
+
 let gen_aux_mli name intf =
-  let gen_typedef ?name ds is =
+  let gen_typedef ?name ds =
     let is =
-      List.fold_right
-        (fun (_, vars, id, _) is ->
+      List.map
+        (fun (_, vars, id, _) ->
           let appd =
             let t =
-              match name with
-                | None -> <:ctyp@g< $lid:id$ >>
-                | Some name -> <:ctyp@g< $uid:name$.$lid:id$ >> in
+              match name, id with
+                | _, "exn" (* hack *)
+                | None, _ -> <:ctyp@g< $lid:id$ >>
+                | Some name, _ -> <:ctyp@g< $uid:name$.$lid:id$ >> in
             G.tapps t (List.map (fun v -> <:ctyp@g< '$lid:v$ >>) vars) in
 
           <:sig_item@g<
@@ -34,55 +47,77 @@ let gen_aux_mli name intf =
               $G.arrows
                 (List.map (fun v -> <:ctyp@g< Xdr.xdr_type_term >>) vars)
                 <:ctyp@g< Xdr.xdr_type_term >>$
-          >> :: is)
-        ds is in
+          >>)
+        ds in
 
+    <:sig_item@g<
+      $match name with
+        | None ->
+            let ts =
+              List.map
+                (fun (_, vars, id, t) ->
+                  let vars = List.map (fun v -> TyQuo (g, v)) vars in
+                  TyDcl (g, id, vars, G.gen_type t, []))
+                ds in
+            SgTyp (g, tyAnd_of_list ts)
+        | Some _ -> SgNil g$ ;;
+      $sgSem_of_list is$
+    >> in
+
+  let gen_exc ?name (_, id, ts) =
     match name with
       | None ->
-          let ts =
-            List.map
-              (fun (_, vars, id, t) ->
-                let vars = List.map (fun v -> TyQuo (g, v)) vars in
-                TyDcl (g, id, vars, G.gen_type t, []))
-              ds in
-          SgTyp (g, tyAnd_of_list ts) :: is
+          <:sig_item@g<
+            exception $uid:id$ of $tyAnd_of_list (List.map G.gen_type ts)$
+          >>
+      | Some _ -> SgNil g in
 
-      | Some _ -> is in
-
-  let gen_func ?name (_, id, args, res) is =
+  let gen_func ~has_excs ?name (_, id, args, res) =
     let arg =
-      match args with
+      match List.map typ_of_argtyp_option args with
         | [] -> assert false
         | [a] -> a
-        | _ -> Tuple (g, args) in
-    let items aid arg is =
+        | args -> Tuple (g, args) in
+    let orpc_res =
+      if has_excs
+      then Apply (g, Some "Orpc_xdr", "orpc_result", [res; Apply (g, None, "exn", [])])
+      else res in
+    let items aid arg =
       <:sig_item@g<
         type $lid:aid$ = $G.gen_type ?name arg$
         val $lid:G.to_ aid$ : Xdr.xdr_value -> $lid:aid$
         val $lid:G.of_ aid$ : $lid:aid$ -> Xdr.xdr_value
         val $lid:G.xdr aid$ : Xdr.xdr_type_term
-      >> :: is in
-    let is = items (G.res id) res is in
-    let is = items (G.arg id) arg is in
-    let is =
-      List.foldi_right
-        (fun arg i is -> <:sig_item@g< type $lid:G.argi id i$ = $G.gen_type ?name arg$ >> :: is)
-        args
-        is in
-    is in
+      >> in
+    <:sig_item@g<
+      $items (G.res0 id) res$ ;;
+      $items (G.arg id) arg$
+      $items (G.res id) orpc_res$
+      $sgSem_of_list
+        (List.mapi
+            (fun arg i -> <:sig_item@g< type $lid:G.argi id i$ = $G.gen_type ?name arg$ >>)
+            (List.map typ_of_argtyp args))$
+    >> in
 
+  let name = match intf with Simple _ -> None | _ -> Some name in
   match intf with
-    | Simple (typedefs, funcs) ->
-        sgSem_of_list
-          (List.fold_right gen_typedef typedefs
-              (List.fold_right gen_func funcs
-                  [ <:sig_item@g< val program : Rpc_program.t >> ]))
-
-    | Modules (typedefs, (_, _, funcs), _) ->
-        sgSem_of_list
-          (List.fold_right (gen_typedef ~name) typedefs
-              (List.fold_right (gen_func ~name) funcs
-                  [ <:sig_item@g< val program : Rpc_program.t >> ]))
+    | Simple (typedefs, excs, funcs)
+    | Modules (typedefs, excs, (_, _, funcs), _) ->
+        let has_excs = excs <> [] in
+        <:sig_item@g<
+          $sgSem_of_list (List.map (gen_typedef ?name) typedefs)$ ;;
+          $sgSem_of_list (List.map (gen_exc ?name) excs)$ ;;
+          $if has_excs
+           then
+             <:sig_item@g<
+               val to_exn : Xdr.xdr_value -> exn
+               val of_exn : exn -> Xdr.xdr_value
+               val xdr_exn : Xdr.xdr_type_term ;;
+             >>
+           else SgNil g$ ;;
+          $sgSem_of_list (List.map (gen_func ~has_excs ?name) funcs)$ ;;
+          val program : Rpc_program.t
+        >>
 
 let rec gen_to ?name t x =
   let gen_to = gen_to ?name in
@@ -150,15 +185,25 @@ let rec gen_to ?name t x =
      | Option (_, t) ->
          <:expr@g< Orpc_xdr.to_option (fun x -> $gen_to t <:expr@g< x >>$) $x$ >>
 
-     | Apply (_, id, args) ->
+     | Apply (_, mdl, id, args) ->
          <:expr@g<
            $G.apps
-             <:expr@g< $lid:G.to_ id$ >>
+             (match mdl with
+               | None -> <:expr@g< $lid:G.to_ id$ >>
+               | Some mdl -> <:expr@g< $uid:mdl$ . $lid:G.to_ id$ >>)
              (List.map (fun a -> <:expr@g< fun x -> $gen_to a <:expr@g< x >>$ >>) args)$
            $x$
          >>
 
      | Arrow _ -> assert false
+
+let gen_to_resexc ?name t exct x =
+  <:expr@g<
+    match Xdr.dest_xv_union_over_enum_fast $x$ with
+      | 0, x -> $gen_to ?name t <:expr@g< x >>$
+      | 1, x -> raise $gen_to ?name exct <:expr@g< x >>$
+      | _ -> assert false
+  >>
 
 let rec gen_of ?name t v =
   let gen_of = gen_of ?name in
@@ -232,15 +277,23 @@ let rec gen_of ?name t v =
      | Option (_, t) ->
          <:expr@g< Orpc_xdr.of_option (fun v -> $gen_of t <:expr@g< v >>$) $v$ >>
 
-     | Apply (_, id, args) ->
+     | Apply (_, mdl, id, args) ->
          <:expr@g<
            $G.apps
-             <:expr@g< $lid:G.of_ id$ >>
+             (match mdl with
+               | None -> <:expr@g< $lid:G.of_ id$ >>
+               | Some mdl -> <:expr@g< $uid:mdl$ . $lid:G.of_ id$ >>)
              (List.map (fun a -> <:expr@g< fun v -> $gen_of a <:expr@g< v >>$ >>) args)$
            $v$
          >>
 
      | Arrow _ -> assert false
+
+let gen_of_exc ?name t v =
+  match gen_of ?name t v with
+    | ExMat (loc, e, cases) ->
+        ExMat (loc, e, McOr(g, cases, <:match_case@g< _ -> raise $v$ >>))
+    | _ -> assert false
 
 (*
   this is kind of hairy because Xdr.xdr_type_term doesn't have a nice
@@ -315,7 +368,9 @@ let rec gen_xdr vs bs ds t =
 
     | Option (_, t) -> <:expr@g< Xdr.x_optional $gx t$ >>
 
-    | Apply (_, id, args) ->
+    | Apply (_, mdl, id, args) ->
+        (* XXX should check that mdl = None for these first two cases *)
+
         if List.mem id bs
         (* refer to a def in scope *)
         then <:expr@g< Xdr.X_refer $`str:id$ >>
@@ -329,7 +384,9 @@ let rec gen_xdr vs bs ds t =
           with Not_found ->
             (* refer to a previous def at the OCaml level *)
             G.apps
-              <:expr@g< $lid:G.xdr id$ >>
+             (match mdl with
+               | None -> <:expr@g< $lid:G.xdr id$ >>
+               | Some mdl -> <:expr@g< $uid:mdl$ . $lid:G.xdr id$ >>)
               (List.map gx args)
         end
 
@@ -339,105 +396,124 @@ and gen_xdr_def vs bs ds id t =
   <:expr@g< Xdr.X_rec ($`str:id$, $gen_xdr vs (id::bs) ds t$) >>
 
 let gen_aux_ml name intf =
-  let gen_typedef ?name ds is =
-    let es =
-      List.map
-        (fun (_, vars, id, t) ->
-          <:binding@g<
-            $lid:G.to_ id$ =
-            $G.funs_ids
-              (List.map G.to_p vars)
-              <:expr@g< fun x -> $gen_to ?name t <:expr@g< x >>$ >>$
-          >>)
-        ds in
-    let is = StVal (g, BTrue, biAnd_of_list es) :: is in
+  let gen_typedef ?name ds =
+    <:str_item@g<
+      $match name with
+        | None ->
+            let ts =
+              List.map
+                (fun (_, vars, id, t) ->
+                  let vars = List.map (fun v -> TyQuo (g, v)) vars in
+                  TyDcl (g, id, vars, G.gen_type t, []))
+                ds in
+            StTyp (g, tyAnd_of_list ts)
 
-    let es =
-      List.map
-        (fun (_, vars, id, t) ->
-          <:binding@g<
-            $lid:G.of_ id$ =
-            $G.funs_ids
-              (List.map G.of_p vars)
-              <:expr@g< fun x -> $gen_of ?name t <:expr@g< x >>$ >>$
-          >>)
-        ds in
-    let is = StVal (g, BTrue, biAnd_of_list es) :: is in
+        | Some _ -> StNil g$;;
 
-    let rec loop ds =
-      match ds with
-        | [] -> []
-        | (_, vars, id, t)::ds ->
-            <:binding@g<
-              $lid:G.xdr id$ =
-              $G.funs_ids
-                (List.map G.xdr_p vars)
-                (gen_xdr_def [] [] ds id t)$
-            >> :: loop ds in
-    let is = List.map (fun b -> StVal (g, BFalse, b)) (loop ds) @ is in
+      $let es =
+         List.map
+           (fun (_, vars, id, t) ->
+             <:binding@g<
+               $lid:G.to_ id$ =
+               $G.funs_ids
+                 (List.map G.to_p vars)
+                 <:expr@g< fun x -> $gen_to ?name t <:expr@g< x >>$ >>$
+             >>)
+           ds in
+       StVal (g, BTrue, biAnd_of_list es)$ ;;
 
+      $let es =
+         List.map
+           (fun (_, vars, id, t) ->
+             <:binding@g<
+               $lid:G.of_ id$ =
+               $G.funs_ids
+                 (List.map G.of_p vars)
+                 <:expr@g< fun x -> $gen_of ?name t <:expr@g< x >>$ >>$
+             >>)
+           ds in
+       StVal (g, BTrue, biAnd_of_list es)$ ;;
+
+      $let rec loop ds =
+         match ds with
+           | [] -> []
+           | (_, vars, id, t)::ds ->
+               <:binding@g<
+                 $lid:G.xdr id$ =
+                 $G.funs_ids
+                   (List.map G.xdr_p vars)
+                   (gen_xdr_def [] [] ds id t)$
+               >> :: loop ds in
+       stSem_of_list (List.map (fun b -> StVal (g, BFalse, b)) (loop ds))$ ;;
+    >> in
+
+  let gen_exc ?name (_, id, ts) =
     match name with
       | None ->
-          let ts =
-            List.map
-              (fun (_, vars, id, t) ->
-                let vars = List.map (fun v -> TyQuo (g, v)) vars in
-                TyDcl (g, id, vars, G.gen_type t, []))
-              ds in
-          StTyp (g, tyAnd_of_list ts) :: is
+          <:str_item@g<
+            exception $uid:id$ of $tyAnd_of_list (List.map G.gen_type ts)$
+          >>
+      | Some _ -> StNil g in
 
-      | Some _ -> is in
-
-  let gen_func ?name (_, id, args, res) is =
+  let gen_func ~has_excs ?name (_, id, args, res) =
     let arg =
-      match args with
+      match List.map typ_of_argtyp_option args with
         | [] -> assert false
         | [a] -> a
-        | _ -> Tuple (g, args) in
-    let items aid arg is =
+        | args -> Tuple (g, args) in
+    let orpc_res =
+      if has_excs
+      then Apply (g, Some "Orpc_xdr", "orpc_result", [res; Apply (g, None, "exn", [])])
+      else res in
+    let items aid arg =
       <:str_item@g<
         type $lid:aid$ = $G.gen_type ?name arg$
         let $lid:G.to_ aid$ x = $gen_to ?name arg <:expr@g< x >>$
         let $lid:G.of_ aid$ v = $gen_of ?name arg <:expr@g< v >>$
         let $lid:G.xdr aid$ = $gen_xdr [] [] [] arg$
-      >> :: is in
-    let is = items (G.res id) res is in
-    let is = items (G.arg id) arg is in
-    let is =
-      List.foldi_right
-        (fun arg i is -> <:str_item@g< type $lid:G.argi id i$ = $G.gen_type ?name arg$ >> :: is)
-        args
-        is in
-    is in
-
-  let program funcs =
+      >> in
     <:str_item@g<
-      let program =
-        Rpc_program.create
-          (Rtypes.uint4_of_int 0)
-          (Rtypes.uint4_of_int 0)
-          (Xdr.validate_xdr_type_system [])
-          [ $exSem_of_list
-              (List.mapi
-                  (fun (_,id,_,_) i ->
-                    <:expr@g<
-                      $`str:id$,
-                      (Rtypes.uint4_of_int $`int:i$,
-                      $lid:G.xdr_arg id$,
-                      $lid:G.xdr_res id$)
-                    >>)
-                  funcs)$ ]
-        >> in
+      $items (G.res0 id) res$ ;;
+      $items (G.arg id) arg$ ;;
+      $items (G.res id) orpc_res$ ;;
+      $stSem_of_list
+        (List.mapi
+            (fun arg i -> <:str_item@g< type $lid:G.argi id i$ = $G.gen_type ?name arg$ >>)
+            (List.map typ_of_argtyp args))$
+    >> in
 
+  let name = match intf with Simple _ -> None | _ -> Some name in
   match intf with
-    | Simple (typedefs, funcs) ->
-        stSem_of_list
-          (List.fold_right gen_typedef typedefs
-              (List.fold_right gen_func funcs
-                  [ program funcs ]))
+    | Simple (typedefs, excs, funcs)
+    | Modules (typedefs, excs, (_, _, funcs), _) ->
+        let has_excs = excs <> [] in
+        <:str_item@g<
+          $stSem_of_list (List.map (gen_typedef ?name) typedefs)$ ;;
+          $stSem_of_list (List.map (gen_exc ?name) excs)$ ;;
+          $if has_excs
+           then
+             let t = Variant (g, List.map (fun (_, id, ts) -> (id, ts)) excs) in
+             <:str_item@g<
+               let to_exn x = $gen_to ?name t <:expr@g< x >>$
+               let of_exn v = $gen_of_exc ?name t <:expr@g< v >>$
+               let xdr_exn = $gen_xdr [] [] [] t$ ;;
+             >>
+           else StNil g$ ;;
+          $stSem_of_list (List.map (gen_func ~has_excs ?name) funcs)$ ;;
 
-    | Modules (typedefs, (_, _, funcs), _) ->
-        stSem_of_list
-          (List.fold_right (gen_typedef ~name) typedefs
-              (List.fold_right (gen_func ~name) funcs
-                  [ program funcs ]))
+          let program =
+            Rpc_program.create
+              (Rtypes.uint4_of_int 0)
+              (Rtypes.uint4_of_int 0)
+              (Xdr.validate_xdr_type_system [])
+              [ $exSem_of_list
+                  (List.mapi
+                      (fun (_,id,_,_) i ->
+                        <:expr@g<
+                          $`str:id$,
+                          (Rtypes.uint4_of_int $`int:i$,
+                          $lid:G.xdr_arg id$,
+                          $lid:G.xdr_res id$)
+                        >>)
+                      funcs)$ ]
+        >>
