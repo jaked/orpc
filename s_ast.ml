@@ -32,11 +32,11 @@ type exc = Loc.t * ident * (typ list)
 
 type func = Loc.t * ident * (argtyp list) * typ
 
-type module_type = Loc.t * ident * (func list)
+type interface_kind = Sync | Async | Lwt
 
-type interface =
-    | Simple of typedef list * exc list * func list
-    | Modules of typedef list * exc list * module_type * module_type option
+type module_type = Loc.t * interface_kind * (func list)
+
+type interface = typedef list * exc list * func list * interface_kind list
 
 let loc_of_typ = function
   | Var (loc, _) -> loc

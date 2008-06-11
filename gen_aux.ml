@@ -19,7 +19,7 @@ let typ_of_argtyp_option = function
   | Labelled (_, _, t) -> t
   | Optional (loc, _, t) -> Option (loc, t)
 
-let gen_aux_mli name intf =
+let gen_aux_mli name (typedefs, excs, funcs, kinds) =
   let gen_typedef ?name ds =
     let is =
       List.map
@@ -80,7 +80,7 @@ let gen_aux_mli name intf =
         | args -> Tuple (g, args) in
     let orpc_res =
       if has_excs
-      then Apply (g, Some "Orpc_xdr", "orpc_result", [res; Apply (g, None, "exn", [])])
+      then Apply (g, Some "Orpc", "orpc_result", [res; Apply (g, None, "exn", [])])
       else res in
     let items aid arg =
       <:sig_item@g<
@@ -99,25 +99,22 @@ let gen_aux_mli name intf =
             (List.map typ_of_argtyp args))$
     >> in
 
-  let name = match intf with Simple _ -> None | _ -> Some name in
-  match intf with
-    | Simple (typedefs, excs, funcs)
-    | Modules (typedefs, excs, (_, _, funcs), _) ->
-        let has_excs = excs <> [] in
-        <:sig_item@g<
-          $sgSem_of_list (List.map (gen_typedef ?name) typedefs)$ ;;
-          $sgSem_of_list (List.map (gen_exc ?name) excs)$ ;;
-          $if has_excs
-           then
-             <:sig_item@g<
-               val to_exn : Xdr.xdr_value -> exn
-               val of_exn : exn -> Xdr.xdr_value
-               val xdr_exn : Xdr.xdr_type_term ;;
-             >>
-           else SgNil g$ ;;
-          $sgSem_of_list (List.map (gen_func ~has_excs ?name) funcs)$ ;;
-          val program : Rpc_program.t
-        >>
+  let name = match kinds with [] -> None | _ -> Some name in
+  let has_excs = excs <> [] in
+  <:sig_item@g<
+    $sgSem_of_list (List.map (gen_typedef ?name) typedefs)$ ;;
+    $sgSem_of_list (List.map (gen_exc ?name) excs)$ ;;
+    $if has_excs
+     then
+       <:sig_item@g<
+         val to_exn : Xdr.xdr_value -> exn
+         val of_exn : exn -> Xdr.xdr_value
+         val xdr_exn : Xdr.xdr_type_term ;;
+       >>
+     else SgNil g$ ;;
+    $sgSem_of_list (List.map (gen_func ~has_excs ?name) funcs)$ ;;
+    val program : Rpc_program.t
+  >>
 
 let rec gen_to ?name t x =
   let gen_to = gen_to ?name in
@@ -180,10 +177,10 @@ let rec gen_to ?name t x =
          <:expr@g< Array.map (fun x -> $gen_to t <:expr@g< x >>$) (Xdr.dest_xv_array $x$) >>
 
      | List (_, t) ->
-         <:expr@g< Orpc_xdr.to_list (fun x -> $gen_to t <:expr@g< x >>$) $x$ >>
+         <:expr@g< Orpc.to_list (fun x -> $gen_to t <:expr@g< x >>$) $x$ >>
 
      | Option (_, t) ->
-         <:expr@g< Orpc_xdr.to_option (fun x -> $gen_to t <:expr@g< x >>$) $x$ >>
+         <:expr@g< Orpc.to_option (fun x -> $gen_to t <:expr@g< x >>$) $x$ >>
 
      | Apply (_, mdl, id, args) ->
          <:expr@g<
@@ -196,14 +193,6 @@ let rec gen_to ?name t x =
          >>
 
      | Arrow _ -> assert false
-
-let gen_to_resexc ?name t exct x =
-  <:expr@g<
-    match Xdr.dest_xv_union_over_enum_fast $x$ with
-      | 0, x -> $gen_to ?name t <:expr@g< x >>$
-      | 1, x -> raise $gen_to ?name exct <:expr@g< x >>$
-      | _ -> assert false
-  >>
 
 let rec gen_of ?name t v =
   let gen_of = gen_of ?name in
@@ -272,10 +261,10 @@ let rec gen_of ?name t v =
          <:expr@g< Xdr.XV_array (Array.map (fun v -> $gen_of t <:expr@g< v >>$) $v$) >>
 
      | List (_, t) ->
-         <:expr@g< Orpc_xdr.of_list (fun v -> $gen_of t <:expr@g< v >>$) $v$ >>
+         <:expr@g< Orpc.of_list (fun v -> $gen_of t <:expr@g< v >>$) $v$ >>
 
      | Option (_, t) ->
-         <:expr@g< Orpc_xdr.of_option (fun v -> $gen_of t <:expr@g< v >>$) $v$ >>
+         <:expr@g< Orpc.of_option (fun v -> $gen_of t <:expr@g< v >>$) $v$ >>
 
      | Apply (_, mdl, id, args) ->
          <:expr@g<
@@ -335,7 +324,7 @@ let rec gen_xdr vs bs ds t =
     | Int64 _ -> <:expr@g< Xdr.X_hyper >>
     | Float _ -> <:expr@g< Xdr.X_double >>
     | Bool _ -> <:expr@g< Xdr.x_bool >>
-    | Char _ -> <:expr@g< Orpc_xdr.x_char >>
+    | Char _ -> <:expr@g< Orpc.x_char >>
     | String _ -> <:expr@g< Xdr.x_string_max >>
 
     | Tuple (_, parts) ->
@@ -364,7 +353,7 @@ let rec gen_xdr vs bs ds t =
 
     | Array (_, t) -> <:expr@g< Xdr.x_array_max $gx t$ >>
 
-    | List (_, t) -> <:expr@g< Orpc_xdr.x_list $gx t$ >>
+    | List (_, t) -> <:expr@g< Orpc.x_list $gx t$ >>
 
     | Option (_, t) -> <:expr@g< Xdr.x_optional $gx t$ >>
 
@@ -395,7 +384,7 @@ let rec gen_xdr vs bs ds t =
 and gen_xdr_def vs bs ds id t =
   <:expr@g< Xdr.X_rec ($`str:id$, $gen_xdr vs (id::bs) ds t$) >>
 
-let gen_aux_ml name intf =
+let gen_aux_ml name (typedefs, excs, funcs, kinds) =
   let gen_typedef ?name ds =
     <:str_item@g<
       $match name with
@@ -463,7 +452,7 @@ let gen_aux_ml name intf =
         | args -> Tuple (g, args) in
     let orpc_res =
       if has_excs
-      then Apply (g, Some "Orpc_xdr", "orpc_result", [res; Apply (g, None, "exn", [])])
+      then Apply (g, Some "Orpc", "orpc_result", [res; Apply (g, None, "exn", [])])
       else res in
     let items aid arg =
       <:str_item@g<
@@ -482,38 +471,35 @@ let gen_aux_ml name intf =
             (List.map typ_of_argtyp args))$
     >> in
 
-  let name = match intf with Simple _ -> None | _ -> Some name in
-  match intf with
-    | Simple (typedefs, excs, funcs)
-    | Modules (typedefs, excs, (_, _, funcs), _) ->
-        let has_excs = excs <> [] in
-        <:str_item@g<
-          $stSem_of_list (List.map (gen_typedef ?name) typedefs)$ ;;
-          $stSem_of_list (List.map (gen_exc ?name) excs)$ ;;
-          $if has_excs
-           then
-             let t = Variant (g, List.map (fun (_, id, ts) -> (id, ts)) excs) in
-             <:str_item@g<
-               let to_exn x = $gen_to ?name t <:expr@g< x >>$
-               let of_exn v = $gen_of_exc ?name t <:expr@g< v >>$
-               let xdr_exn = $gen_xdr [] [] [] t$ ;;
-             >>
-           else StNil g$ ;;
-          $stSem_of_list (List.map (gen_func ~has_excs ?name) funcs)$ ;;
+  let name = match kinds with [] -> None | _ -> Some name in
+  let has_excs = excs <> [] in
+  <:str_item@g<
+    $stSem_of_list (List.map (gen_typedef ?name) typedefs)$ ;;
+    $stSem_of_list (List.map (gen_exc ?name) excs)$ ;;
+    $if has_excs
+     then
+       let t = Variant (g, List.map (fun (_, id, ts) -> (id, ts)) excs) in
+       <:str_item@g<
+         let to_exn x = $gen_to ?name t <:expr@g< x >>$
+         let of_exn v = $gen_of_exc ?name t <:expr@g< v >>$
+         let xdr_exn = $gen_xdr [] [] [] t$ ;;
+       >>
+     else StNil g$ ;;
+    $stSem_of_list (List.map (gen_func ~has_excs ?name) funcs)$ ;;
 
-          let program =
-            Rpc_program.create
-              (Rtypes.uint4_of_int 0)
-              (Rtypes.uint4_of_int 0)
-              (Xdr.validate_xdr_type_system [])
-              [ $exSem_of_list
-                  (List.mapi
-                      (fun (_,id,_,_) i ->
-                        <:expr@g<
-                          $`str:id$,
-                          (Rtypes.uint4_of_int $`int:i$,
-                          $lid:G.xdr_arg id$,
-                          $lid:G.xdr_res id$)
-                        >>)
-                      funcs)$ ]
-        >>
+    let program =
+      Rpc_program.create
+        (Rtypes.uint4_of_int 0)
+        (Rtypes.uint4_of_int 0)
+        (Xdr.validate_xdr_type_system [])
+        [ $exSem_of_list
+            (List.mapi
+                (fun (_,id,_,_) i ->
+                  <:expr@g<
+                    $`str:id$,
+                    (Rtypes.uint4_of_int $`int:i$,
+                    $lid:G.xdr_arg id$,
+                    $lid:G.xdr_res id$)
+                  >>)
+                funcs)$ ]
+  >>

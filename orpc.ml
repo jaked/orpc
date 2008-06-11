@@ -1,39 +1,76 @@
-open Camlp4.PreCast
-open Ast
-open S_ast
-open Error
+let x_char =
+  Xdr.X_enum (let rec loop n =
+              if n = 256 then []
+              else (String.make 1 (char_of_int n), Rtypes.int4_of_int n)::loop (n + 1) in
+              loop 0)
 
-let _ = let module M = Camlp4OCamlRevisedParser.Make(Syntax) in ()
-let _ = let module M = Camlp4OCamlParser.Make(Syntax) in ()
+let x_list x'a =
+  Xdr.X_rec ("list",
+            Xdr.X_union_over_enum
+              (Xdr.x_bool,
+              ["FALSE", Xdr.X_void;
+               "TRUE", Xdr.X_struct ["0", x'a; "1", Xdr.X_refer "list"]],
+              None))
 
-module Loc = Camlp4.PreCast.Loc
+let to_list to'a x =
+  let rec loop x =
+    match Xdr.dest_xv_union_over_enum_fast x with
+      | (0, _) -> []
+      | (1, x) ->
+          (match Xdr.dest_xv_struct_fast x with
+            | [| x0; x1 |] -> to'a x0 :: loop x1
+            | _ -> assert false)
+      | _ -> assert false in
+  loop x
 
-let do_file fn =
-  let print_error loc msg =
-    Format.fprintf Format.std_formatter
-      "%s at %a\n" msg Loc.print loc;
-    Format.print_flush () in
-  try
-    let ch = open_in fn in
-    let st = Stream.of_channel ch in
-    let i = Syntax.parse_interf (Loc.mk fn) st in
-    let intf = Parse.parse_interface i in
-    Check.check_interface intf;
+let of_list of'a v =
+  let rec loop v =
+    match v with
+      | [] -> Xdr.XV_union_over_enum_fast (0, Xdr.XV_void)
+      | v0::v1 -> Xdr.XV_union_over_enum_fast (1, Xdr.XV_struct_fast [| of'a v0; loop v1 |]) in
+  loop v
 
-    let base = Filename.chop_extension fn in
-    let mod_base = String.capitalize (Filename.basename base) in
-    Printers.OCaml.print_interf ~output_file:(base ^ "_aux.mli") (Gen_aux.gen_aux_mli mod_base intf);
-    Printers.OCaml.print_implem ~output_file:(base ^ "_aux.ml") (Gen_aux.gen_aux_ml mod_base intf);
-    Printers.OCaml.print_interf ~output_file:(base ^ "_clnt.mli") (Gen_clnt.gen_clnt_mli mod_base intf);
-    Printers.OCaml.print_implem ~output_file:(base ^ "_clnt.ml") (Gen_clnt.gen_clnt_ml mod_base intf);
-    Printers.OCaml.print_interf ~output_file:(base ^ "_srv.mli") (Gen_srv.gen_srv_mli mod_base intf);
-    Printers.OCaml.print_implem ~output_file:(base ^ "_srv.ml") (Gen_srv.gen_srv_ml mod_base intf);
-  with
-    | Loc.Exc_located (loc, Stream.Error msg) -> print_error loc msg
-    | Loc.Exc_located (loc, e) -> print_error loc (Printexc.to_string e)
-    | Error (loc, msg) -> print_error loc msg
+let to_option to'a x =
+  match Xdr.dest_xv_union_over_enum_fast x with
+    | (0, _) -> None
+    | (1, x) -> Some (to'a x)
+    | _ -> assert false
 
-let args = Arg.align [
-]
+let of_option of'a v =
+  match v with
+    | None -> Xdr.XV_union_over_enum_fast (0, Xdr.XV_void)
+    | Some v -> Xdr.XV_union_over_enum_fast (1, of'a v)
 
-let _ = Arg.parse args do_file "usage:"
+(* 'b is always exn but the dummy param lets us pass in {of|to|xdr}_exn *)
+type ('a, 'b) orpc_result = Orpc_success of 'a | Orpc_failure of exn
+
+let to_orpc_result to'a to'b x =
+  match Xdr.dest_xv_union_over_enum_fast x with
+    | (0, x) -> Orpc_success (to'a x)
+    | (1, x) -> Orpc_failure (to'b x)
+    | _ -> assert false
+
+let of_orpc_result of'a of'b x =
+  match x with
+    | Orpc_success x -> Xdr.XV_union_over_enum_fast (0, of'a x)
+    | Orpc_failure x -> Xdr.XV_union_over_enum_fast (1, of'b x)
+
+let xdr_orpc_result xdr'a xdr'b =
+  Xdr.X_rec ("orpc_result",
+            Xdr.X_union_over_enum
+              (Xdr.X_enum [ ("Orpc_success", (Rtypes.int4_of_int 0));
+                            ("Orpc_failure", (Rtypes.int4_of_int 1)) ],
+              [ ("Orpc_success", xdr'a); ("Orpc_failure", xdr'b) ], None))
+
+let pack_orpc_result f =
+  try Orpc_success (f ())
+  with e -> Orpc_failure e
+
+let pack_orpc_result_async f k =
+  try f (fun r -> k (Orpc_success r))
+  with e -> k (Orpc_failure e)
+
+let unpack_orpc_result v =
+  match v with
+    | Orpc_success v -> v
+    | Orpc_failure e -> raise e

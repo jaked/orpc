@@ -55,6 +55,7 @@ let rec parse_type t =
             (* TyApp is used for both tupled and nested type application *)
           | <:ctyp< $t2$ $t1$ >> -> apps (parse_type t2 :: args) t1
           | <:ctyp< $lid:id$ >> -> Apply (loc, None, id, args)
+          | <:ctyp< $uid:mname$.$lid:id$ >> -> Apply (loc, Some mname, id, args)
           | t -> ctyp_error t "expected TyApp or TyId" in
         apps [] t
 
@@ -129,14 +130,19 @@ and parse_module_type loc id i =
       | SgSem (_, i1, i2) -> parse_sig_items i1 (parse_sig_items i2 a)
       | SgVal (loc, id, t) -> parse_val loc id t :: a
       | i -> sig_item_error i "expected function declaration" in
-  (loc, id, parse_sig_items i [])
+  let kind =
+    match id with
+      | "Sync" -> Sync
+      | "Async" -> Async
+      | "Lwt" -> Lwt
+      | _ -> loc_error loc "unknown interface kind" in
+  (loc, kind, parse_sig_items i [])
 
 let parse_interface i =
   let s = { typedefs = []; exceptions = []; funcs = []; module_types = [] } in
   let s = parse_sig_items i s in
-  let { typedefs = tds; exceptions = excs; funcs = funcs } = s in
+  let { typedefs = typedefs; exceptions = excs; funcs = funcs; module_types = mts } = s in
   match s with
-    | { funcs = []; module_types = [ sync ] } -> Modules (tds, excs, sync, None)
-    | { funcs = []; module_types = [ sync; async ] } -> Modules (tds, excs, sync, Some async)
-    | { module_types = [] } -> Simple (tds, excs, funcs)
+    | { funcs = []; module_types = (_, _, _::_)::_ } -> (typedefs, excs, funcs, mts)
+    | { funcs = _::_; module_types = [] } -> (typedefs, excs, funcs, mts)
     | _ -> loc_error Loc.ghost "expected simple interface or modules interface"

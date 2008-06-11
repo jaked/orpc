@@ -20,7 +20,7 @@ let rec check_type ids vars btds t =
 
     | Arrow (loc, _, _) -> loc_error loc "function type not supported"
 
-    | Apply (loc, Some _, _, _) -> assert false
+    | Apply (loc, Some _, _, _) -> loc_error loc "module-qualified type not allowed"
     | Apply (loc, _, id, args) ->
         try
           let vars = List.assoc id btds in
@@ -103,37 +103,88 @@ let check_funcs ids fids funcs =
              []
              funcs)
 
-     let async_mismatch loc msg = loc_error loc ("sync/async interface mismatch: " ^ msg)
+let interface_mismatch loc msg = loc_error loc ("interface mismatch: " ^ msg)
 
-     let g = Camlp4.PreCast.Loc.ghost
+let g = Camlp4.PreCast.Loc.ghost
 
-     let check_async (s_loc, s_id, s_args, s_ret) (as_loc, as_id, as_args, as_ret) =
-       if s_id <> as_id then async_mismatch as_loc "names";
-       if not (match as_ret with Unit _ -> true | _ -> false)
-       then async_mismatch (loc_of_typ as_ret) "return type";
-       let check_arg sync async =
-         if strip_locs_argtyp sync <> strip_locs_argtyp async
-         then async_mismatch (loc_of_argtyp async) "arg types" in
-       let as_args' = s_args @ [ Unlabelled (g, Arrow (g, Arrow (g, Unit g, s_ret), Unit g)) ] in
-       try List.iter2 check_arg as_args' as_args
-       with Invalid_argument _ -> async_mismatch as_loc "arg counts"
+let get_module_type_funcs mts =
+  match mts with
+    | [] -> assert false
+    | (loc, kind, funcs)::_ ->
+        let func =
+          match kind with
+            | Sync -> (fun f -> f)
 
-     let check_interface i =
-       begin
-         match i with
-           | Simple (typedefs, excs, funcs)
-           | Modules (typedefs, excs, (_, _, funcs), _) ->
-               (* XXX this doesn't check that typedefs precede their uses in excs/funcs *)
-          let ids = check_typedefs [] typedefs in
-          check_excs ids excs;
-          check_funcs ids [] funcs
-  end;
-  begin
-    match i with
-      | Modules (_, _, (_, _, funcs), Some (_, _, async_funcs)) ->
-          begin
-            try List.iter2 check_async funcs async_funcs
-            with Invalid_argument _ -> async_mismatch g "func counts"
-          end
-      | _ -> ()
-  end
+            | Async ->
+                (fun (loc, id, args, ret) ->
+                  if not (match ret with Unit _ -> true | _ -> false)
+                  then loc_error (loc_of_typ ret) "async return type must be unit";
+                  let (args, reply) =
+                    match List.rev args with
+                      | [] -> assert false (* checked in parse *)
+                      | [_] -> loc_error loc "async function must have at least two arguments"
+                      | ret::args -> List.rev args, ret in
+                  let ret =
+                    match reply with
+                      | Unlabelled (_, Arrow (_, Arrow (_, Unit _, ret), Unit _)) -> ret
+                      | _ -> loc_error (loc_of_argtyp reply) "async function must have reply argument" in
+                  (loc, id, args, ret))
+
+            | Lwt ->
+                (fun (loc, id, args, lwt_ret) ->
+                  let ret =
+                    match lwt_ret with
+                      | Apply (_, Some "Lwt", "t", [ ret ]) -> ret
+                      | _ -> loc_error (loc_of_typ lwt_ret) "Lwt function must return Lwt.t" in
+                  (loc, id, args, ret)) in
+        List.map func funcs
+
+let check_module_type_funcs funcs (_, kind, mt_funcs) =
+  let check_arg a mt_a =
+    if strip_locs_argtyp a <> strip_locs_argtyp mt_a
+    then interface_mismatch (loc_of_argtyp mt_a) "arg types" in
+  let check_args loc args mt_args =
+    try List.iter2 check_arg args mt_args
+    with Invalid_argument _ -> interface_mismatch loc "arg counts" in
+  let check_ret r mt_r =
+    if strip_locs_typ r <> strip_locs_typ mt_r
+    then interface_mismatch (loc_of_typ mt_r) "return type" in
+  let check_names loc id mt_id =
+    if id <> mt_id then interface_mismatch loc "names" in
+
+  let func =
+    match kind with
+      | Sync ->
+          (fun (_, id, args, ret) (s_loc, s_id, s_args, s_ret) ->
+            check_names s_loc id s_id;
+            check_args s_loc args s_args;
+            check_ret ret s_ret)
+      | Async ->
+          (fun (_, id, args, ret) (as_loc, as_id, as_args, as_ret) ->
+            check_names as_loc id as_id;
+            let args = args @ [ Unlabelled (g, Arrow (g, Arrow (g, Unit g, ret), Unit g)) ] in
+            check_args as_loc args as_args;
+            check_ret (Unit g) as_ret)
+      | Lwt ->
+          (fun (_, id, args, ret) (l_loc, l_id, l_args, l_ret) ->
+            check_names l_loc id l_id;
+            check_args l_loc args l_args;
+            check_ret (Apply (g, Some "Lwt", "t", [ ret ])) l_ret) in
+
+  try List.iter2 func funcs mt_funcs
+  with Invalid_argument _ -> interface_mismatch g "func counts"
+
+let check_interface (typedefs, excs, funcs, mts) =
+  let funcs =
+    match funcs with
+      | [] -> get_module_type_funcs mts
+      | _ -> funcs in
+
+  (* XXX this doesn't check that typedefs precede their uses in excs/funcs *)
+  let ids = check_typedefs [] typedefs in
+  check_excs ids excs;
+  check_funcs ids [] funcs;
+
+  List.iter (check_module_type_funcs funcs) mts;
+
+  (typedefs, excs, funcs, List.map (fun (_, kind, _) -> kind) mts)

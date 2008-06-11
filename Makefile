@@ -1,18 +1,26 @@
 FILES=\
-orpc_lib.cma orpc_lib.cmxa orpc_lib.a \
-orpc_xdr.mli orpc_xdr.cmi
+orpc.cma orpc.cmxa orpc.a \
+orpc.mli orpc.cmi \
 
 BFILES=$(addprefix _build/,$(FILES))
 
+LWT_FILES=\
+lwt-equeue.cma lwt-equeue.cmxa lwt-equeue.a \
+lwt.mli lwt.cmi lwt_util.mli lwt_util.cmi lwt_mutex.mli lwt_mutex.cmi \
+
+LWT_BFILES=$(addprefix _build/lwt-equeue/,$(LWT_FILES))
+
 all:
-	ocamlbuild orpc.native orpc_lib.cma orpc_lib.cmxa
+	ocamlbuild main.native orpc.cma orpc.cmxa lwt-equeue/lwt-equeue.cma lwt-equeue/lwt-equeue.cmxa
 
 install: all
 	ocamlfind install orpc META $(BFILES)
-	cp orpc.native /usr/local/bin/orpc
+	ocamlfind install lwt-equeue lwt-equeue/META $(LWT_BFILES)
+	cp main.native /usr/local/bin/orpc
 
 uninstall:
 	ocamlfind remove orpc
+	ocamlfind remove lwt-equeue
 
 clean:
 	ocamlbuild -clean

@@ -1,5 +1,5 @@
 <**/*.ml*> : camlp4of, use_camlp4_full
 
-<orpc_xdr.ml*> : pkg_rpc
+<orpc.ml*> : pkg_rpc
 
 <*.{byte,native}> : use_dynlink, use_camlp4_full

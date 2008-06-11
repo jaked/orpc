@@ -1,0 +1,3 @@
+This is the Lwt library from Ocsigen-1.0.0. My intention is to modify
+it to run on top of Equeue, but for now it just contains the parts
+that work unchanged.

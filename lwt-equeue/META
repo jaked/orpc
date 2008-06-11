@@ -1,0 +1,6 @@
+name="Lwt-Equeue"
+description="Lightweight threads on top of Equeue"
+requires="unix"
+version="0.1"
+archive(byte) = "lwt-equeue.cma"
+archive(native) = "lwt-equeue.cmxa"
