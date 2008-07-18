@@ -1,5 +1,8 @@
 (** Module [Lwt_unix]: thread-compatible system calls *)
 
+val set_event_system : Unixqueue.event_system -> unit
+exception Event_system_not_set
+
 val sleep : float -> unit Lwt.t
       (** [sleep d] is a threads which remain suspended for [d] seconds
           (letting other threads run) and then terminates. *)
@@ -8,6 +11,7 @@ val yield : unit -> unit Lwt.t
           thread run) and then resumes as soon as possible and
           terminates. *)
 
+(*
 val run : 'a Lwt.t -> 'a
       (** [run t] lets the thread [t] run until it terminates.  It
           evaluates to the return value of [t], or raise the exception
@@ -118,4 +122,5 @@ val close_process:
 val close_process_full:
   in_channel * out_channel * in_channel ->
   Unix.process_status Lwt.t
+*)
 *)

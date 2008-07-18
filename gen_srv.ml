@@ -200,6 +200,7 @@ let gen_srv_ml name (typedefs, excs, funcs, kinds) =
                     ?program_number
                     ?version_number
                     srv =
+                  Lwt_unix.set_event_system (Rpc_server.get_srv_event_system srv);
                   $List.fold_left
                     (fun e (_, id, args, _) ->
                       ExApp(g, e, ExLab (g, "proc_" ^ id,

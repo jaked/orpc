@@ -1,3 +1,24 @@
+let event_system_group = ref None
+
+let set_event_system es =
+  event_system_group := Some (es, es#new_group ())
+
+exception Event_system_not_set
+
+let get_event_system_group () =
+  match !event_system_group with
+    | None -> raise Event_system_not_set
+    | Some (es, g) -> es, g
+
+let sleep d =
+  let res = Lwt.wait () in
+  let (es, g) = get_event_system_group () in
+  es#once g d (fun () -> Lwt.wakeup res ());
+  res
+
+let yield () = sleep 0.
+
+(*
 (*
 Non-blocking I/O and select does not (fully) work under Windows.
 The libray therefore does not use them under Windows, and will
@@ -486,3 +507,4 @@ let outputs_length () = blocked_thread_count outputs
 let wait_children_length () = List.length !wait_children
 let get_new_sleeps () = List.length !new_sleeps
 let sleep_queue_size () = SleepQueue.size !sleep_queue
+*)

@@ -1,3 +1,5 @@
 Lwt
 Lwt_mutex
+Lwt_timeout
+Lwt_unix
 Lwt_util
