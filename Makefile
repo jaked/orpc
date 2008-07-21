@@ -20,7 +20,7 @@ all:
 install: all
 	ocamlfind install orpc META $(BFILES)
 	ocamlfind install lwt-equeue lwt-equeue/META $(LWT_BFILES)
-	cp main.native /usr/local/bin/orpc
+	cp main.native `ocamlfind printconf stdlib`/../../bin/orpc
 
 uninstall:
 	ocamlfind remove orpc
