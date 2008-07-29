@@ -1,7 +1,8 @@
 (** Module [Lwt_unix]: thread-compatible system calls *)
 
-val set_event_system : Unixqueue.event_system -> unit
 exception Event_system_not_set
+val set_event_system : Unixqueue.event_system -> unit
+val unset_event_system : unit -> unit
 
 val sleep : float -> unit Lwt.t
       (** [sleep d] is a threads which remain suspended for [d] seconds

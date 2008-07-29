@@ -1,18 +1,19 @@
-let event_system_group = ref None
-
-let set_event_system es =
-  event_system_group := Some (es, es#new_group ())
-
 exception Event_system_not_set
 
-let get_event_system_group () =
-  match !event_system_group with
-    | None -> raise Event_system_not_set
-    | Some (es, g) -> es, g
+let event_system_group = ref (fun () -> raise Event_system_not_set)
+
+let set_event_system es =
+  let esg = (es, es#new_group ()) in
+  event_system_group := fun () -> esg
+
+let unset_event_system () =
+  let (es, g) = !event_system_group() in
+  es#clear g;
+  event_system_group := fun () -> raise Event_system_not_set
 
 let sleep d =
   let res = Lwt.wait () in
-  let (es, g) = get_event_system_group () in
+  let (es, g) = !event_system_group() in
   es#once g d (fun () -> Lwt.wakeup res ());
   res
 
