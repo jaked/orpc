@@ -104,3 +104,5 @@ let format_option fmt'a fmt v =
   match v with
     | None -> Format.fprintf fmt "None"
     | Some v -> Format.fprintf fmt "@[<hv 1>(Some@ %a)@]" fmt'a v
+
+let session = ref None

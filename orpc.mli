@@ -18,3 +18,6 @@ val unpack_orpc_result : ('a, exn) orpc_result -> 'a
 val format_array : (Format.formatter -> 'a -> unit) -> Format.formatter -> 'a array -> unit
 val format_list : (Format.formatter -> 'a -> unit) -> Format.formatter -> 'a list -> unit
 val format_option : (Format.formatter -> 'a -> unit) -> Format.formatter -> 'a option -> unit
+
+(* a place to stash the session on asynchronous calls. not thread safe, obviously. *)
+val session : Rpc_server.session option ref

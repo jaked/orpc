@@ -174,7 +174,8 @@ let gen_srv_ml name (typedefs, excs, funcs, kinds) =
                     (fun e (_, id, args, _) ->
                       ExApp(g, e, ExLab (g, "proc_" ^ id,
                                         <:expr@g<
-                                          fun _s ->
+                                          fun s ->
+                                            Orpc.session := Some s;
                                             $let (ps, es) = G.vars args in
                                              G.funs
                                                (List.map2 G.labelled_patt args ps)
@@ -204,7 +205,8 @@ let gen_srv_ml name (typedefs, excs, funcs, kinds) =
                     (fun e (_, id, args, _) ->
                       ExApp(g, e, ExLab (g, "proc_" ^ id,
                                         <:expr@g<
-                                          fun _s ->
+                                          fun s ->
+                                            Orpc.session := Some s;
                                             $let (ps, es) = G.vars args in
                                              G.funs
                                                (List.map2 G.labelled_patt args ps)
