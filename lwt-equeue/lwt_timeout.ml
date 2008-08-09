@@ -1,3 +1,25 @@
+(* Lightweight thread library for Objective Caml
+ * http://www.ocsigen.org/lwt
+ * Module Lwt_timeout
+ * Copyright (C) 2005-2008 Jérôme Vouillon
+ * Laboratoire PPS - CNRS Université Paris Diderot
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as
+ * published by the Free Software Foundation, with linking exception;
+ * either version 2.1 of the License, or (at your option) any later
+ * version.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
+ * 02111-1307, USA.
+ *)
 
 type t =
   { mutable delay : int; action : unit -> unit;
@@ -51,11 +73,11 @@ let size l =
 
 (****)
 
-let handle_exn = 
-  ref 
-    (fun e -> 
+let handle_exn =
+  ref
+    (fun e ->
        prerr_string "Lwt_timeout - Uncaught exception after timeout: ";
-       prerr_endline (Printexc.to_string e); 
+       prerr_endline (Printexc.to_string e);
        exit 1)
 
 let set_exn_handler f = handle_exn := f

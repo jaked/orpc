@@ -1,3 +1,26 @@
+(* Lightweight thread library for Objective Caml
+ * http://www.ocsigen.org/lwt
+ * Interface Lwt_chan
+ * Copyright (C) 2005-2008 Jérôme Vouillon
+ * Laboratoire PPS - CNRS Université Paris Diderot
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as
+ * published by the Free Software Foundation, with linking exception;
+ * either version 2.1 of the License, or (at your option) any later
+ * version.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
+ * 02111-1307, USA.
+ *)
+
 (** Module [Lwt_chan]: cooperative, [Pervasives]-like, I/O functions *)
 
 
@@ -18,7 +41,9 @@ val input_value : in_channel -> 'a Lwt.t
 val input : in_channel -> string -> int -> int -> int Lwt.t
 val really_input : in_channel -> string -> int -> int -> unit Lwt.t
 val input_char : in_channel -> char Lwt.t
+val input_binary_int : in_channel -> int Lwt.t
 
+val open_in_gen : Unix.open_flag list -> int -> string -> in_channel
 val open_in : string -> in_channel
 val close_in : in_channel -> unit Lwt.t
 
@@ -39,6 +64,11 @@ val output : out_channel -> string -> int -> int -> unit Lwt.t
 val flush : out_channel -> unit Lwt.t
 val output_string : out_channel -> string -> unit Lwt.t
 val output_value : out_channel -> 'a -> unit Lwt.t
+val output_char : out_channel -> char -> unit Lwt.t
+val output_binary_int : out_channel -> int -> unit Lwt.t
 
+val open_out_gen : Unix.open_flag list -> int -> string -> out_channel
 val open_out : string -> out_channel
 val close_out : out_channel -> unit Lwt.t
+
+val open_connection : Unix.sockaddr -> (in_channel * out_channel) Lwt.t

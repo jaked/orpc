@@ -1,6 +1,6 @@
-(* Ocsigen
+(* Lwt
  * http://www.ocsigen.org
- * lwt_lib.mli Copyright (C) 2007 Pierre Clairambault
+ * Copyright (C) 2008 Jérôme Vouillon
  * Laboratoire PPS - CNRS Université Paris Diderot
  *
  * This program is free software; you can redistribute it and/or modify
@@ -18,15 +18,22 @@
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *)
 
-val getaddrinfo :
-    string ->
-    string -> Unix.getaddrinfo_option list -> Unix.addr_info list Lwt.t
-(** Cooperative getaddrinfo with cache (using Lwt_preemptive.detach) *)
+(** Creating pools (for example pools of connections to a database). *)
 
-val gethostbyname : string -> Unix.host_entry Lwt.t
-(** Cooperative gethostbyname with cache (using Lwt_preemptive.detach) *)
+(** Instead of creating a new connection each time you need one,
+    keep a pool of opened connections and reuse opened connections
+    that are free.
+ *)
 
+(** Type of pools *)
+type 'a t
 
-val getnameinfo : Unix.sockaddr -> Unix.getnameinfo_option list ->
-  Unix.name_info Lwt.t
-(** Cooperative getnameinfo with cache (using Lwt_preemptive.detach) *)
+(** [create n f] creates a new pool with at most [n] members.
+    [f] is the function to use to create a new pool member. *)
+val create :
+  int -> ?check:('a -> (bool -> unit) -> unit) -> (unit -> 'a Lwt.t) -> 'a t
+
+(** [use p f] takes one free member of the pool [p] and gives it to the function
+    [f].
+ *)
+val use : 'a t -> ('a -> 'b Lwt.t) -> 'b Lwt.t

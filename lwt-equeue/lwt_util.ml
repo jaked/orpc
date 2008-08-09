@@ -1,3 +1,25 @@
+(* Lightweight thread library for Objective Caml
+ * http://www.ocsigen.org/lwt
+ * Module Lwt_util
+ * Copyright (C) 2005-2008 Jérôme Vouillon
+ * Laboratoire PPS - CNRS Université Paris Diderot
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as
+ * published by the Free Software Foundation, with linking exception;
+ * either version 2.1 of the License, or (at your option) any later
+ * version.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
+ * 02111-1307, USA.
+ *)
 
 open Lwt
 
@@ -12,7 +34,7 @@ let rec iter f l =
 let rec iter_serial f l =
   match l with
     []     -> return ()
-  | a :: r -> f a >>= (fun () -> iter f r)
+  | a :: r -> f a >>= (fun () -> iter_serial f r)
 
 let rec map f l =
   match l with
@@ -29,19 +51,19 @@ let map_with_waiting_action f wa l =
   let rec loop l =
     match l with
       [] ->
-	return []
+        return []
     | v :: r ->
-	let t = f v in
-	let rt = loop r in
-	t >>= (fun v' ->
-	  (* Perform the specified "waiting action" for the next    *)
-	  (* item in the list.                                      *)
-	  if r <> [] then
-	    wa (List.hd r)
-	  else
-	    ();
-	  rt >>= (fun l' ->
-	    return (v' :: l')))
+        let t = f v in
+        let rt = loop r in
+        t >>= (fun v' ->
+          (* Perform the specified "waiting action" for the next    *)
+          (* item in the list.                                      *)
+          if r <> [] then
+            wa (List.hd r)
+          else
+            ();
+          rt >>= (fun l' ->
+            return (v' :: l')))
   in
   if l <> [] then
     wa (List.hd l)
@@ -55,7 +77,7 @@ let rec map_serial f l =
       return []
   | v :: r ->
       f v >>= (fun v' ->
-      map f r >>= (fun l' ->
+      map_serial f r >>= (fun l' ->
       return (v' :: l')))
 
 let rec fold_left f a = function

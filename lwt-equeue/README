@@ -1,3 +1,3 @@
-This is the Lwt library from Ocsigen-1.0.0. My intention is to modify
-it to run on top of Equeue, but for now it just contains the parts
-that work unchanged.
+This is the bare beginning of a port of Lwt 1.1.0 to run on top of
+Equeue. Most of the code runs unchanged; so far I've implemented just
+Lwt_unix.sleep.

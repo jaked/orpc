@@ -1,3 +1,25 @@
+(* Lightweight thread library for Objective Caml
+ * http://www.ocsigen.org/lwt
+ * Module Lwt_chan
+ * Copyright (C) 2005-2008 Jérôme Vouillon
+ * Laboratoire PPS - CNRS Université Paris Diderot
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as
+ * published by the Free Software Foundation, with linking exception;
+ * either version 2.1 of the License, or (at your option) any later
+ * version.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
+ * 02111-1307, USA.
+ *)
 
 let buffer_size = 4096
 
@@ -138,6 +160,12 @@ let input_line ic =
        String.blit !buf 0 res 0 !pos;
        Lwt.return res)
 
+let input_binary_int ch =
+  let s = String.create 4 in
+  Lwt.bind (really_input ch s 0 4) (fun () ->
+  Lwt.return ((Char.code s.[0] lsl 24) + (Char.code s.[1] lsl 16) +
+              (Char.code s.[2] lsl 8) + Char.code s.[3]))
+
 (****)
 
 type out_channel = channel
@@ -199,7 +227,32 @@ let rec flush oc =
   else
     flush oc)
 
-let output_string oc s =
-  unsafe_output oc s 0 (String.length s)
+let output_string oc s = unsafe_output oc s 0 (String.length s)
 
 let output_value oc v = output_string oc (Marshal.to_string v [])
+
+let output_char oc c = unsafe_output oc (String.make 1 c) 0 1
+
+let output_binary_int ch i =
+  let output = String.create 4 in
+  output.[0] <- char_of_int (i lsr 24 mod 256);
+  output.[1] <- char_of_int (i lsr 16 mod 256);
+  output.[2] <- char_of_int (i lsr 8 mod 256);
+  output.[3] <- char_of_int (i mod 256);
+  output_string ch output
+
+(****)
+
+let try_set_close_on_exec fd =
+  try Lwt_unix.set_close_on_exec fd; true with Invalid_argument _ -> false
+
+let open_connection sockaddr =
+  let sock =
+    Lwt_unix.socket (Unix.domain_of_sockaddr sockaddr) Unix.SOCK_STREAM 0 in
+  Lwt.catch
+    (fun () ->
+       Lwt.bind (Lwt_unix.connect sock sockaddr) (fun () ->
+       ignore (try_set_close_on_exec sock);
+       Lwt.return (in_channel_of_descr sock, out_channel_of_descr sock)))
+    (fun exn ->
+       Lwt_unix.close sock; Lwt.fail exn)
