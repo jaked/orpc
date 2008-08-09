@@ -8,9 +8,10 @@ LWT_FILES=\
 lwt-equeue.cma lwt-equeue.cmxa lwt-equeue.a \
 lwt.mli lwt.cmi \
 lwt_mutex.mli lwt_mutex.cmi \
+lwt_pool.mli lwt_pool.cmi \
+lwt_timeout.mli lwt_timeout.cmi \
 lwt_unix.mli lwt_unix.cmi \
 lwt_util.mli lwt_util.cmi \
-lwt_timeout.mli lwt_timeout.cmi \
 
 LWT_BFILES=$(addprefix _build/lwt-equeue/,$(LWT_FILES))
 

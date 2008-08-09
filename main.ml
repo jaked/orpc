@@ -28,6 +28,8 @@ let do_file fn =
     Printers.OCaml.print_implem ~output_file:(base ^ "_clnt.ml") (Gen_clnt.gen_clnt_ml mod_base intf);
     Printers.OCaml.print_interf ~output_file:(base ^ "_srv.mli") (Gen_srv.gen_srv_mli mod_base intf);
     Printers.OCaml.print_implem ~output_file:(base ^ "_srv.ml") (Gen_srv.gen_srv_ml mod_base intf);
+    Printers.OCaml.print_interf ~output_file:(base ^ "_trace.mli") (Gen_trace.gen_trace_mli mod_base intf);
+    Printers.OCaml.print_implem ~output_file:(base ^ "_trace.ml") (Gen_trace.gen_trace_ml mod_base intf);
     Printers.OCaml.print_implem ~output_file:(base ^ "_logger.ml") (Gen_logger.gen_logger_ml mod_base intf);
   with
     | Loc.Exc_located (loc, Stream.Error msg) -> print_error loc msg

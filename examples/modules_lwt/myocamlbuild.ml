@@ -42,7 +42,7 @@ dispatch begin function
        end (find_packages ());
 
        rule ("orpc: %.ml -> %_aux.ml[i]")
-         ~prods:["%_aux.ml"; "%_aux.mli"; "%_clnt.ml"; "%_clnt.mli"; "%_srv.ml"; "%_srv.mli"]
+         ~prods:["%_aux.ml"; "%_aux.mli"; "%_clnt.ml"; "%_clnt.mli"; "%_srv.ml"; "%_srv.mli"; "%_trace.ml"; "%_trace.mli"]
          ~deps:["%.ml"]
          begin fun env build ->
            let x = env "%.ml" in
