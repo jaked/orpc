@@ -175,16 +175,16 @@ let gen_srv_ml name (typedefs, excs, funcs, kinds) =
                       ExApp(g, e, ExLab (g, "proc_" ^ id,
                                         <:expr@g<
                                           fun s ->
-                                            Orpc.session := Some s;
                                             $let (ps, es) = G.vars args in
                                              G.funs
                                                (List.map2 G.labelled_patt args ps)
                                                <:expr@g<
                                                  fun pass_reply ->
-                                                 $G.apps
-                                                   <:expr@g< A.$lid:id$ >>
-                                                   (List.map2 G.labelled_expr args es)$
-                                                 (fun r -> pass_reply (r ()))
+                                                   Orpc.session := Some s;
+                                                   $G.apps
+                                                     <:expr@g< A.$lid:id$ >>
+                                                     (List.map2 G.labelled_expr args es)$
+                                                   (fun r -> pass_reply (r ()))
                                                >>$
                                         >>)))
                     <:expr@g< bind_async ?program_number ?version_number >>
@@ -206,12 +206,12 @@ let gen_srv_ml name (typedefs, excs, funcs, kinds) =
                       ExApp(g, e, ExLab (g, "proc_" ^ id,
                                         <:expr@g<
                                           fun s ->
-                                            Orpc.session := Some s;
                                             $let (ps, es) = G.vars args in
                                              G.funs
                                                (List.map2 G.labelled_patt args ps)
                                                <:expr@g<
                                                  fun pass_reply ->
+                                                   Orpc.session := Some s;
                                                    Lwt.ignore_result
                                                      (Lwt.try_bind
                                                          (fun () ->

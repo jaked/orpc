@@ -296,14 +296,13 @@ let gen_trace_ml name (typedefs, excs, funcs, kinds) =
                           T.with_formatter (fun fmt ->
                             $G.apps <:expr< $lid:format_ id ^ "'args"$ fmt >> (List.map2 G.labelled_expr args es)$);
                         with _ -> ());
-                      let pass_reply res =
-                        try
-                          let r = res () in
-                          (try T.with_formatter (fun fmt -> $lid:format_ id ^ "'res"$ fmt r) with _ -> ());
-                          pass_reply (fun () -> r)
-                        with e ->
-                          (try T.with_formatter (fun fmt -> format_exn_res fmt e) with _ -> ());
-                          pass_reply (fun () -> raise e) in
+                      let pass_reply rf =
+                        (try
+                            let r = rf () in
+                            (try T.with_formatter (fun fmt -> $lid:format_ id ^ "'res"$ fmt r) with _ -> ())
+                          with e ->
+                            (try T.with_formatter (fun fmt -> format_exn_res fmt e) with _ -> ()));
+                        pass_reply rf in
                       $G.apps <:expr< A.$lid:id$ >> (List.map2 G.labelled_expr args es)$ pass_reply
                   >>$
             >> in
