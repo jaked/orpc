@@ -111,16 +111,16 @@ let gen_trace_ml name (typedefs, excs, funcs, kinds) =
             String.concat "" [
               "@[{@[<hv 2>@ ";
               String.concat ";@ "
-                (List.map (fun (f, _) -> "@[<hov 2>" ^ f ^ "@ =@ %a@]") fields);
+                (List.map (fun f -> "@[<hov 2>" ^ f.f_id ^ "@ =@ %a@]") fields);
               "@]@ }@]";
             ] in
-          let rb (id, _) p = <:patt< $Ast.IdAcc(_loc, Ast.IdUid (_loc, type_mod), Ast.IdLid (_loc, id))$ = $p$ >> in
+          let rb f p = <:patt< $Ast.IdAcc(_loc, Ast.IdUid (_loc, type_mod), Ast.IdLid (_loc, f.f_id))$ = $p$ >> in
           <:expr<
             let { $paSem_of_list (List.map2 rb fields fps)$ } = $v$ in
             $G.apps
               <:expr< Format.fprintf fmt $`str:spec$ >>
               (List.fold_right2
-                  (fun (_, t) v l -> (gen_format_fun t)::v::l)
+                  (fun f v l -> (gen_format_fun f.f_typ)::v::l)
                   fields fes [])$
           >>
 

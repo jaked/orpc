@@ -14,7 +14,7 @@ let rec check_type ids vars btds t =
 
     | Unit _ | Int _ | Int32 _ | Int64 _ | Float _ | Bool _ | Char _ | String _ -> ()
     | Tuple (_, parts) -> List.iter ct parts
-    | Record (_, fields) -> List.iter (fun (_, t) -> ct t) fields
+    | Record (_, fields) -> List.iter (fun f -> ct f.f_typ) fields
     | Variant (_, arms) -> List.iter (fun (_, ts) -> List.iter ct ts) arms
     | Array (_, t) | List (_, t) | Option (_, t) -> ct t
 

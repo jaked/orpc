@@ -85,7 +85,10 @@ let rec gen_type ?name t =
   | Record (_, fields) ->
       let fields =
         List.map
-          (fun (id, t) -> <:ctyp@g< $lid:id$ : $gen_type t$ >>)
+          (fun f ->
+            if f.f_mut
+            then <:ctyp@g< $lid:f.f_id$ : mutable $gen_type f.f_typ$ >>
+            else <:ctyp@g< $lid:f.f_id$ : $gen_type f.f_typ$ >>)
           fields in
       <:ctyp@g< { $tySem_of_list fields$ } >>
 

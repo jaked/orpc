@@ -139,10 +139,10 @@ let rec gen_to ?name t x =
 
     | Record (_, fields) ->
         let (fps, fes) = G.vars fields in
-        let rb (id, t) e =
+        let rb f e =
           match name with
-            | None -> <:rec_binding@g< $lid:id$ = $gen_to t e$ >>
-            | Some name -> <:rec_binding@g< $uid:name$.$lid:id$ = $gen_to t e$ >> in
+            | None -> <:rec_binding@g< $lid:f.f_id$ = $gen_to f.f_typ e$ >>
+            | Some name -> <:rec_binding@g< $uid:name$.$lid:f.f_id$ = $gen_to f.f_typ e$ >> in
         <:expr@g<
           match Xdr.dest_xv_struct_fast $x$ with
             | [| $paSem_of_list fps$ |] -> $ExRec(g, rbSem_of_list (List.map2 rb fields fes), ExNil g)$
@@ -216,14 +216,14 @@ let rec gen_of ?name t v =
 
     | Record (_, fields) ->
         let (fps, fes) = G.vars fields in
-        let rb (id, _) p =
+        let rb f p =
           match name with
-            | None -> <:patt@g< $lid:id$ = $p$ >>
+            | None -> <:patt@g< $lid:f.f_id$ = $p$ >>
             (* | Some name -> <:patt@g< $uid:name$.$lid:id$ = $p$ >> *)(* doesn't work *)
-            | Some name -> <:patt@g< $Ast.IdAcc(g, Ast.IdUid (g, name), Ast.IdLid (g, id))$ = $p$ >> in
+            | Some name -> <:patt@g< $Ast.IdAcc(g, Ast.IdUid (g, name), Ast.IdLid (g, f.f_id))$ = $p$ >> in
         <:expr@g<
           let { $paSem_of_list (List.map2 rb fields fps)$ } = $v$ in
-          Xdr.XV_struct_fast [| $exSem_of_list (List.map2 (fun (_, t) v -> gen_of t v) fields fes)$ |]
+          Xdr.XV_struct_fast [| $exSem_of_list (List.map2 (fun f v -> gen_of f.f_typ v) fields fes)$ |]
         >>
 
      | Variant (_, arms) ->
@@ -332,7 +332,7 @@ let rec gen_xdr vs bs ds t =
         <:expr@g< Xdr.X_struct [ $exSem_of_list (List.mapi px parts)$ ] >>
 
     | Record (_, fields) ->
-        let fx (id, t) = <:expr@g< ( $`str:id$, $gx t$ ) >> in
+        let fx f = <:expr@g< ( $`str:f.f_id$, $gx f.f_typ$ ) >> in
         <:expr@g< Xdr.X_struct [ $exSem_of_list (List.map fx fields)$ ] >>
 
     | Variant (_, arms) ->

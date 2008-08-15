@@ -13,13 +13,19 @@ type typ =
     | Char of Loc.t
     | String of Loc.t
     | Tuple of Loc.t * typ list
-    | Record of Loc.t * (ident * typ) list
+    | Record of Loc.t * field list
     | Variant of Loc.t * (ident * (typ list)) list
     | Array of Loc.t * typ
     | List of Loc.t * typ
     | Option of Loc.t * typ
     | Apply of Loc.t * ident option * ident * typ list
     | Arrow of Loc.t * typ * typ
+
+and field = {
+  f_id : ident;
+  f_mut : bool;
+  f_typ : typ;
+}
 
 type argtyp =
     | Unlabelled of Loc.t * typ
@@ -71,7 +77,7 @@ let rec strip_locs_typ = function
   | Char _ -> Char g
   | String _ -> String g
   | Tuple (_, parts) -> Tuple (g, List.map strip_locs_typ parts)
-  | Record (_, fields) -> Record (g, List.map (fun (id,t) -> (id, strip_locs_typ t)) fields)
+  | Record (_, fields) -> Record (g, List.map (fun f -> { f with f_typ = strip_locs_typ f.f_typ }) fields)
   | Variant (_, arms) -> Variant (g, List.map (fun (id,ts) -> (id, List.map strip_locs_typ ts)) arms)
   | Array (_, t) -> Array (g, strip_locs_typ t)
   | List (_, t) -> List (g, strip_locs_typ t)
