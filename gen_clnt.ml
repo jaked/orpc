@@ -5,7 +5,7 @@ open Util
 
 module G = Gen_common
 
-let g = Camlp4.PreCast.Loc.ghost
+let _loc = Camlp4.PreCast.Loc.ghost
 
 let gen_clnt_mli name (typedefs, excs, funcs, kinds) =
 
@@ -13,20 +13,20 @@ let gen_clnt_mli name (typedefs, excs, funcs, kinds) =
     List.map
       (function
         | Sync ->
-            <:sig_item@g<
+            <:sig_item<
               module Sync(C : sig val with_client : (Rpc_client.t -> 'a) -> 'a end) : $uid:name$.Sync
             >>
         | Async ->
-            <:sig_item@g<
+            <:sig_item<
               module Async(C : sig val with_client : (Rpc_client.t -> 'a) -> 'a end) : $uid:name$.Async
             >>
         | Lwt ->
-            <:sig_item@g<
+            <:sig_item<
               module Lwt(C : sig val with_client : (Rpc_client.t -> 'a) -> 'a end) : $uid:name$.Lwt
             >>)
       kinds in
 
-  <:sig_item@g<
+  <:sig_item<
     val create_client :
       ?esys:Unixqueue.event_system ->
       ?program_number:Rtypes.uint4 ->
@@ -53,7 +53,7 @@ let gen_clnt_mli name (typedefs, excs, funcs, kinds) =
     $sgSem_of_list
       (List.map
           (fun (_, id, args, res) ->
-            <:sig_item@g<
+            <:sig_item<
               val $lid:id$ : Rpc_client.t ->
                 $G.arrows
                   (List.mapi
@@ -66,13 +66,13 @@ let gen_clnt_mli name (typedefs, excs, funcs, kinds) =
     $sgSem_of_list
       (List.map
           (fun (_, id, args, res) ->
-            <:sig_item@g<
+            <:sig_item<
               val $lid:id ^ "'async"$ : Rpc_client.t ->
                 $G.arrows
                   (List.mapi
                       (fun a i -> G.labelled_ctyp a (G.aux_type name (G.argi id i)))
                       args)
-                  <:ctyp@g< ((unit -> $G.aux_type name (G.res0 id)$) -> unit) -> unit >>$
+                  <:ctyp< ((unit -> $G.aux_type name (G.res0 id)$) -> unit) -> unit >>$
             >>)
           funcs)$ ;;
 
@@ -83,49 +83,49 @@ let gen_clnt_ml name (typedefs, excs, funcs, kinds) =
 
   let sync_func ~has_excs (_, id, args, res) =
     (fun body ->
-      <:str_item@g<
+      <:str_item<
         let $lid:id$ = fun client ->
           $match args with
             | [] -> assert false
-            | [a] -> <:expr@g< fun $G.labelled_patt a <:patt@g< arg >>$ -> $body$ >>
+            | [a] -> <:expr< fun $G.labelled_patt a <:patt< arg >>$ -> $body$ >>
             | _ ->
                 let (ps, es) = G.vars args in
                 G.funs
                   (List.map2 G.labelled_patt args ps)
-                  <:expr@g< let arg = ($exCom_of_list es$) in $body$ >>$
+                  <:expr< let arg = ($exCom_of_list es$) in $body$ >>$
       >>)
       ((fun body2 ->
           if has_excs
-          then <:expr@g< Orpc.unpack_orpc_result $body2$ >>
+          then <:expr< Orpc.unpack_orpc_result $body2$ >>
           else body2)
-        <:expr@g<
+        <:expr<
           $G.aux_val name (G.to_res id)$
           (Rpc_client.sync_call client $`str:id$ ($G.aux_val name (G.of_arg id)$ arg))
         >>) in
 
   let async_func ~has_excs (_, id, args, res) =
     (fun body ->
-      <:str_item@g<
+      <:str_item<
         let $lid:id ^ "'async"$ = fun client ->
           $match args with
             | [] -> assert false
-            | [a] -> <:expr@g< fun $G.labelled_patt a <:patt@g< arg >>$ pass_reply -> $body$ >>
+            | [a] -> <:expr< fun $G.labelled_patt a <:patt< arg >>$ pass_reply -> $body$ >>
             | _ ->
                 let (ps, es) = G.vars args in
                 G.funs
                   (List.map2 G.labelled_patt args ps)
-                  <:expr@g< fun pass_reply ->
+                  <:expr< fun pass_reply ->
                     let arg = ($exCom_of_list es$) in $body$
                   >>$
       >>)
       (if has_excs
       then
-        <:expr@g<
+        <:expr<
           Rpc_client.add_call client $`str:id$ ($G.aux_val name (G.of_arg id)$ arg)
           (fun g -> pass_reply (fun () -> Orpc.unpack_orpc_result ($G.aux_val name (G.to_res id)$ (g ()))))
         >>
       else
-        <:expr@g<
+        <:expr<
           Rpc_client.add_call client $`str:id$ ($G.aux_val name (G.of_arg id)$ arg)
           (fun g -> pass_reply (fun () -> $G.aux_val name (G.to_res id)$ (g ())))
         >>) in
@@ -136,20 +136,20 @@ let gen_clnt_ml name (typedefs, excs, funcs, kinds) =
         | Sync ->
             let func (_, id, args, res) =
               let (ps, es) = G.vars args in
-              <:str_item@g<
+              <:str_item<
                 let $lid:id$ =
                   $G.funs
                     (List.map2 G.labelled_patt args ps)
-                    <:expr@g<
+                    <:expr<
                       C.with_client
                         (fun c ->
                           $G.apps
-                            <:expr@g< $lid:id$ c >>
+                            <:expr< $lid:id$ c >>
                             (List.map2 G.labelled_expr args es)$)
                     >>$
               >> in
 
-            <:str_item@g<
+            <:str_item<
               module Sync(C : sig val with_client : (Rpc_client.t -> 'a) -> 'a end) =
               struct
                 $stSem_of_list (List.map func funcs)$
@@ -159,22 +159,22 @@ let gen_clnt_ml name (typedefs, excs, funcs, kinds) =
         | Async ->
             let func (_, id, args, res) =
               let (ps, es) = G.vars args in
-              <:str_item@g<
+              <:str_item<
                 let $lid:id$ =
                   $G.funs
                     (List.map2 G.labelled_patt args ps)
-                    <:expr@g<
+                    <:expr<
                       fun pass_reply ->
                         C.with_client
                           (fun c ->
                             $G.apps
-                              <:expr@g< $lid:id ^ "'async"$ c >>
+                              <:expr< $lid:id ^ "'async"$ c >>
                               (List.map2 G.labelled_expr args es)$
                             pass_reply)
                     >>$
               >> in
 
-            <:str_item@g<
+            <:str_item<
               module Async(C : sig val with_client : (Rpc_client.t -> 'a) -> 'a end) =
               struct
                 $stSem_of_list (List.map func funcs)$
@@ -184,16 +184,16 @@ let gen_clnt_ml name (typedefs, excs, funcs, kinds) =
         | Lwt ->
             let func (_, id, args, res) =
               let (ps, es) = G.vars args in
-              <:str_item@g<
+              <:str_item<
                 let $lid:id$ =
                   $G.funs
                     (List.map2 G.labelled_patt args ps)
-                    <:expr@g<
+                    <:expr<
                         C.with_client
                           (fun c ->
                             let res = Lwt.wait () in
                             $G.apps
-                              <:expr@g< $lid:id ^ "'async"$ c >>
+                              <:expr< $lid:id ^ "'async"$ c >>
                               (List.map2 G.labelled_expr args es)$
                             (fun r ->
                               try Lwt.wakeup res (r ())
@@ -202,7 +202,7 @@ let gen_clnt_ml name (typedefs, excs, funcs, kinds) =
                     >>$
               >> in
 
-            <:str_item@g<
+            <:str_item<
               module Lwt(C : sig val with_client : (Rpc_client.t -> 'a) -> 'a end) =
               struct
                 $stSem_of_list (List.map func funcs)$
@@ -213,7 +213,7 @@ let gen_clnt_ml name (typedefs, excs, funcs, kinds) =
 
   let has_excs = excs <> [] in
 
-  <:str_item@g<
+  <:str_item<
     let create_client
         ?(esys = Unixqueue.create_unix_event_system())
         ?program_number
