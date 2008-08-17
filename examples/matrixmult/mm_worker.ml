@@ -1,64 +1,73 @@
 (* Implementation of the worker *)
 
-open Mm_proto_controller
+module Worker
+  (Controller_cfg : sig
+    val controller_host : string
+    val controller_port : int
+  end) =
+struct
+  open Mm_proto_controller
 
 
-let jobs_at_once = 100
+  let jobs_at_once = 100
 
+  let ping () = ()
 
-let proc_run (controller_host, controller_port) () =
-  let controller =
-    Mm_proto_controller_clnt.create_client2
-      ~program_number:(Rtypes.uint4_of_int 2)
-      (`Socket(Rpc.Tcp,
-	       Rpc_client.Inet(controller_host,controller_port),
-	       Rpc_client.default_socket_config)) in
+  let run () =
+    let controller =
+      Mm_proto_controller_clnt.create_client2
+        ~program_number:(Rtypes.uint4_of_int 2)
+        (`Socket(Rpc.Tcp,
+	        Rpc_client.Inet(Controller_cfg.controller_host,Controller_cfg.controller_port),
+	        Rpc_client.default_socket_config)) in
 
-  (* Get the dimension of the matrices, and retrieve them from the ctrl:*)
-  let ldim =
-    Mm_proto_controller_clnt.get_dim controller Left in
-  let rdim =
-    Mm_proto_controller_clnt.get_dim controller Right in
-  assert(ldim.rows = rdim.columns);
+    let module Controller =
+      Mm_proto_controller_clnt.Sync(struct let with_client f = f controller end) in
 
-  let lmatrix =
-    Array.make ldim.rows [| |] in
-  for j = 0 to ldim.rows-1 do
-    lmatrix.(j) <- Mm_proto_controller_clnt.get_row controller Left j
-  done;
-  let rmatrix =
-    Array.make rdim.rows [| |] in
-  for j = 0 to ldim.rows-1 do
-    rmatrix.(j) <- Mm_proto_controller_clnt.get_row controller Right j
-  done;
+    (* Get the dimension of the matrices, and retrieve them from the ctrl:*)
+    let ldim = Controller.get_dim Left in
+    let rdim = Controller.get_dim Right in
+    assert(ldim.rows = rdim.columns);
+
+    let lmatrix =
+      Array.make ldim.rows [| |] in
+    for j = 0 to ldim.rows-1 do
+      lmatrix.(j) <- Controller.get_row Left j
+    done;
+    let rmatrix =
+      Array.make rdim.rows [| |] in
+    for j = 0 to ldim.rows-1 do
+      rmatrix.(j) <- Controller.get_row Right j
+    done;
   
-  (* Get jobs until there are no more jobs. *)
-  let cont = ref true in
-  while !cont do
-    let jobs = Mm_proto_controller_clnt.pull_jobs controller jobs_at_once in
-    cont := (jobs <> [| |]);
+    (* Get jobs until there are no more jobs. *)
+    let cont = ref true in
+    while !cont do
+      let jobs = Controller.pull_jobs jobs_at_once in
+      cont := (jobs <> [| |]);
     
-    let results = ref [] in
-    Array.iter
-      (fun job ->
-	 let lcol = job.left_col in
-	 let rrow = job.right_row in
-	 let s = ref 0.0 in
-	 for j = 0 to ldim.rows-1 do
-	   s := !s +. lmatrix.(j).(lcol) *. rmatrix.(rrow).(j)
-	 done;
-	 results :=
-	   { res_job = job;
-	     res_val = !s
-	   } :: !results
-      )
-      jobs;
+      let results = ref [] in
+      Array.iter
+        (fun job ->
+	  let lcol = job.left_col in
+	  let rrow = job.right_row in
+	  let s = ref 0.0 in
+	  for j = 0 to ldim.rows-1 do
+	    s := !s +. lmatrix.(j).(lcol) *. rmatrix.(rrow).(j)
+	  done;
+	  results :=
+	    { res_job = job;
+	      res_val = !s
+	    } :: !results
+        )
+        jobs;
     
-    Mm_proto_controller_clnt.put_results controller (Array.of_list !results)
-  done;
+      Controller.put_results (Array.of_list !results)
+    done;
 
-  (* Done: return "()" to caller *)
-  ()
+    (* Done: return "()" to caller *)
+    ()
+end
 
 
 let configure cf addr =
@@ -74,10 +83,14 @@ let configure cf addr =
   
 
 let setup srv (controller_host, controller_port) =
-  Mm_proto_worker_srv.bind
+  let module Controller_cfg =
+      struct
+        let controller_host = controller_host
+        let controller_port = controller_port
+      end in
+  let module M = Mm_proto_worker_srv.Sync(Worker(Controller_cfg)) in
+  M.bind
     ~program_number:(Rtypes.uint4_of_int 3)
-    ~proc_ping:(fun () -> ())
-    ~proc_run:(proc_run (controller_host, controller_port))
     srv
 
 let worker_factory() =
