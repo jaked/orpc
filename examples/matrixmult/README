@@ -1,0 +1,4 @@
+This is a port to Orpc of the distributed matrix multiplication
+example at
+
+  http://blog.camlcity.org/blog/parallelmm.html
