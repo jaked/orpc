@@ -175,17 +175,13 @@ let gen_srv_ml name (typedefs, excs, funcs, kinds) =
                       let body =
                         <:expr<
                           fun s ->
-                            $let (ps, es) = G.vars args in
-                            G.funs
-                              (List.map2 G.labelled_patt args ps)
+                            $G.args_funs args
                               <:expr<
                                 fun pass_reply ->
                                   Orpc.session := Some s;
-                                  $G.apps
-                                    <:expr< A.$lid:id$ >>
-                                    (List.map2 G.labelled_expr args es)$
+                                  $G.args_apps <:expr< A.$lid:id$ >> args$
                                     (fun r -> pass_reply (r ()))
-                               >>$
+                              >>$
                         >> in
                       ExApp(_loc, e, ExLab (_loc, "proc_" ^ id, body)))
                     <:expr< bind_async ?program_number ?version_number >>
@@ -207,18 +203,14 @@ let gen_srv_ml name (typedefs, excs, funcs, kinds) =
                       let body =
                         <:expr<
                           fun s ->
-                            $let (ps, es) = G.vars args in
-                             G.funs
-                               (List.map2 G.labelled_patt args ps)
+                            $G.args_funs args
                                <:expr<
                                  fun pass_reply ->
                                    Orpc.session := Some s;
                                    Lwt.ignore_result
                                      (Lwt.try_bind
                                          (fun () ->
-                                           $G.apps
-                                             <:expr< A.$lid:id$ >>
-                                             (List.map2 G.labelled_expr args es)$)
+                                           $G.args_apps <:expr< A.$lid:id$ >> args$)
                                          (fun r -> Lwt.return (pass_reply r))
                                          (fun e -> raise e))
                                >>$

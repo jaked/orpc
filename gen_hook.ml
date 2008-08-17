@@ -43,15 +43,13 @@ let gen_hook_ml name (typedefs, excs, funcs, kinds) =
 
       | Sync ->
           let func (_, id, args, res) =
-            let (ps, es) = G.vars args in
             <:str_item<
               let $lid:id$ =
-                $G.funs
-                  (List.map2 G.labelled_patt args ps)
+                $G.args_funs args
                   <:expr<
                     let ok, exn = H.hook $`str:id$ in
                     try
-                      let r = $G.apps <:expr< A.$lid:id$ >> (List.map2 G.labelled_expr args es)$ in
+                      let r = $G.args_apps <:expr< A.$lid:id$ >> args$ in
                       (try ok () with _ -> ());
                       r
                     with e ->
@@ -70,11 +68,9 @@ let gen_hook_ml name (typedefs, excs, funcs, kinds) =
 
       | Async ->
           let func (_, id, args, res) =
-            let (ps, es) = G.vars args in
             <:str_item<
               let $lid:id$ =
-                $G.funs
-                  (List.map2 G.labelled_patt args ps)
+                $G.args_funs args
                   <:expr<
                     fun pass_reply ->
                       let ok, exn = H.hook $`str:id$ in
@@ -82,7 +78,7 @@ let gen_hook_ml name (typedefs, excs, funcs, kinds) =
                         (try let r = rf () in (try ok () with _ -> ())
                           with e -> (try exn e with _ -> ()));
                         pass_reply rf in
-                      $G.apps <:expr< A.$lid:id$ >> (List.map2 G.labelled_expr args es)$ pass_reply
+                      $G.args_apps <:expr< A.$lid:id$ >> args$ pass_reply
                   >>$
             >> in
           <:str_item<
@@ -96,15 +92,13 @@ let gen_hook_ml name (typedefs, excs, funcs, kinds) =
 
       | Lwt ->
           let func (_, id, args, res) =
-            let (ps, es) = G.vars args in
             <:str_item<
               let $lid:id$ =
-                $G.funs
-                  (List.map2 G.labelled_patt args ps)
+                $G.args_funs args
                   <:expr<
                     let ok, exn = H.hook $`str:id$ in
                     Lwt.try_bind
-                      (fun () -> $G.apps <:expr< A.$lid:id$ >> (List.map2 G.labelled_expr args es)$)
+                      (fun () -> $G.args_apps <:expr< A.$lid:id$ >> args$)
                       (fun r -> (try ok () with _ -> ()); Lwt.return r)
                       (fun e -> (try exn e with _ -> ()); Lwt.fail e)
                   >>$

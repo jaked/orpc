@@ -89,9 +89,8 @@ let gen_clnt_ml name (typedefs, excs, funcs, kinds) =
             | [] -> assert false
             | [a] -> <:expr< fun $G.labelled_patt a <:patt< arg >>$ -> $body$ >>
             | _ ->
-                let (ps, es) = G.vars args in
-                G.funs
-                  (List.map2 G.labelled_patt args ps)
+                let (_, es) = G.vars args in
+                G.args_funs args
                   <:expr< let arg = ($exCom_of_list es$) in $body$ >>$
       >>)
       ((fun body2 ->
@@ -111,12 +110,9 @@ let gen_clnt_ml name (typedefs, excs, funcs, kinds) =
             | [] -> assert false
             | [a] -> <:expr< fun $G.labelled_patt a <:patt< arg >>$ pass_reply -> $body$ >>
             | _ ->
-                let (ps, es) = G.vars args in
-                G.funs
-                  (List.map2 G.labelled_patt args ps)
-                  <:expr< fun pass_reply ->
-                    let arg = ($exCom_of_list es$) in $body$
-                  >>$
+                let (_, es) = G.vars args in
+                G.args_funs args
+                  <:expr< fun pass_reply -> let arg = ($exCom_of_list es$) in $body$ >>$
       >>)
       (if has_excs
       then
@@ -135,17 +131,13 @@ let gen_clnt_ml name (typedefs, excs, funcs, kinds) =
       (function
         | Sync ->
             let func (_, id, args, res) =
-              let (ps, es) = G.vars args in
               <:str_item<
                 let $lid:id$ =
-                  $G.funs
-                    (List.map2 G.labelled_patt args ps)
+                  $G.args_funs args
                     <:expr<
                       C.with_client
                         (fun c ->
-                          $G.apps
-                            <:expr< $lid:id$ c >>
-                            (List.map2 G.labelled_expr args es)$)
+                          $G.args_apps <:expr< $lid:id$ c >> args$)
                     >>$
               >> in
 
@@ -158,18 +150,14 @@ let gen_clnt_ml name (typedefs, excs, funcs, kinds) =
 
         | Async ->
             let func (_, id, args, res) =
-              let (ps, es) = G.vars args in
               <:str_item<
                 let $lid:id$ =
-                  $G.funs
-                    (List.map2 G.labelled_patt args ps)
+                  $G.args_funs args
                     <:expr<
                       fun pass_reply ->
                         C.with_client
                           (fun c ->
-                            $G.apps
-                              <:expr< $lid:id ^ "'async"$ c >>
-                              (List.map2 G.labelled_expr args es)$
+                            $G.args_apps <:expr< $lid:id ^ "'async"$ c >> args$
                             pass_reply)
                     >>$
               >> in
@@ -183,18 +171,14 @@ let gen_clnt_ml name (typedefs, excs, funcs, kinds) =
 
         | Lwt ->
             let func (_, id, args, res) =
-              let (ps, es) = G.vars args in
               <:str_item<
                 let $lid:id$ =
-                  $G.funs
-                    (List.map2 G.labelled_patt args ps)
+                  $G.args_funs args
                     <:expr<
                         C.with_client
                           (fun c ->
                             let res = Lwt.wait () in
-                            $G.apps
-                              <:expr< $lid:id ^ "'async"$ c >>
-                              (List.map2 G.labelled_expr args es)$
+                            $G.args_apps <:expr< $lid:id ^ "'async"$ c >> args$
                             (fun r ->
                               try Lwt.wakeup res (r ())
                               with exn -> Lwt.wakeup_exn res exn);

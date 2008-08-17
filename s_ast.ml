@@ -42,6 +42,8 @@ type interface_kind = Sync | Async | Lwt
 
 type module_type = Loc.t * interface_kind * (func list)
 
+type pre_interface = typedef list * exc list * func list * module_type list
+
 type interface = typedef list * exc list * func list * interface_kind list
 
 let loc_of_typ = function

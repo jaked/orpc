@@ -136,3 +136,27 @@ let labelled_expr at e =
     | Unlabelled _ -> e
     | Labelled (_, label, _) -> ExLab (_loc, label, e)
     | Optional (_, label, _) -> ExOlb (_loc, label, e)
+
+let args_funs args e =
+  let ps =
+    List.mapi
+      (fun a i ->
+        let p = <:patt< $lid:"x" ^ string_of_int i$ >> in
+        match a with
+          | Unlabelled _ -> p
+          | Labelled (_, label, _) -> PaLab (_loc, label, p)
+          | Optional (_, label, _) -> PaOlb (_loc, label, p))
+      args in
+  funs ps e
+
+let args_apps e args =
+  let es =
+    List.mapi
+      (fun a i ->
+        let e = <:expr< $lid:"x" ^ string_of_int i$ >> in
+        match a with
+          | Unlabelled _ -> e
+          | Labelled (_, label, _) -> ExLab (_loc, label, e)
+          | Optional (_, label, _) -> ExOlb (_loc, label, e))
+      args in
+  apps e es

@@ -218,7 +218,7 @@ let gen_trace_ml name (typedefs, excs, funcs, kinds) =
     >> in
 
   let gen_func (_, id, args, res) =
-    let (ps, es) = G.vars args in
+    let (_, es) = G.vars args in
     let spec =
       String.concat "" [
         "@[<hv 2>";
@@ -235,8 +235,7 @@ let gen_trace_ml name (typedefs, excs, funcs, kinds) =
       ] in
     <:str_item<
       let $lid:format_ id ^ "'args"$ fmt =
-        $G.funs
-          (List.map2 G.labelled_patt args ps)
+        $G.args_funs args
           <:expr<
             $G.apps
               <:expr< Format.fprintf fmt $`str:spec$ >>
@@ -255,18 +254,16 @@ let gen_trace_ml name (typedefs, excs, funcs, kinds) =
 
       | Sync ->
           let func (_, id, args, res) =
-            let (ps, es) = G.vars args in
             <:str_item<
               let $lid:id$ =
-                $G.funs
-                  (List.map2 G.labelled_patt args ps)
+                $G.args_funs args
                   <:expr<
                     (try
                         T.with_formatter (fun fmt ->
-                          $G.apps <:expr< $lid:format_ id ^ "'args"$ fmt >> (List.map2 G.labelled_expr args es)$);
+                          $G.args_apps <:expr< $lid:format_ id ^ "'args"$ fmt >> args$);
                       with _ -> ());
                     try
-                      let r = $G.apps <:expr< A.$lid:id$ >> (List.map2 G.labelled_expr args es)$ in
+                      let r = $G.args_apps <:expr< A.$lid:id$ >> args$ in
                       (try T.with_formatter (fun fmt -> $lid:format_ id ^ "'res"$ fmt r) with _ -> ());
                       r
                     with e ->
@@ -285,16 +282,14 @@ let gen_trace_ml name (typedefs, excs, funcs, kinds) =
 
       | Async ->
           let func (_, id, args, res) =
-            let (ps, es) = G.vars args in
             <:str_item<
               let $lid:id$ =
-                $G.funs
-                  (List.map2 G.labelled_patt args ps)
+                $G.args_funs args
                   <:expr<
                     fun pass_reply ->
                       (try
                           T.with_formatter (fun fmt ->
-                            $G.apps <:expr< $lid:format_ id ^ "'args"$ fmt >> (List.map2 G.labelled_expr args es)$);
+                            $G.args_apps <:expr< $lid:format_ id ^ "'args"$ fmt >> args$);
                         with _ -> ());
                       let pass_reply rf =
                         (try
@@ -303,7 +298,7 @@ let gen_trace_ml name (typedefs, excs, funcs, kinds) =
                           with e ->
                             (try T.with_formatter (fun fmt -> format_exn_res fmt e) with _ -> ()));
                         pass_reply rf in
-                      $G.apps <:expr< A.$lid:id$ >> (List.map2 G.labelled_expr args es)$ pass_reply
+                      $G.args_apps <:expr< A.$lid:id$ >> args$ pass_reply
                   >>$
             >> in
           <:str_item<
@@ -317,18 +312,16 @@ let gen_trace_ml name (typedefs, excs, funcs, kinds) =
 
       | Lwt ->
           let func (_, id, args, res) =
-            let (ps, es) = G.vars args in
             <:str_item<
               let $lid:id$ =
-                $G.funs
-                  (List.map2 G.labelled_patt args ps)
+                $G.args_funs args
                   <:expr<
                     (try
                         T.with_formatter (fun fmt ->
-                          $G.apps <:expr< $lid:format_ id ^ "'args"$ fmt >> (List.map2 G.labelled_expr args es)$);
+                          $G.args_apps <:expr< $lid:format_ id ^ "'args"$ fmt >> args$);
                       with _ -> ());
                     Lwt.try_bind
-                      (fun () -> $G.apps <:expr< A.$lid:id$ >> (List.map2 G.labelled_expr args es)$)
+                      (fun () -> $G.args_apps <:expr< A.$lid:id$ >> args$)
                       (fun r ->
                         (try T.with_formatter (fun fmt -> $lid:format_ id ^ "'res"$ fmt r) with _ -> ());
                         Lwt.return r)
