@@ -15,10 +15,7 @@ struct
     C.maybe_raise true ignore;
 end
 
-module T =
-struct
-  let with_formatter f = f Format.err_formatter
-end
+module T = Orpc.Trace_of_formatter(struct let formatter = Format.err_formatter end)
 
 ;;
 

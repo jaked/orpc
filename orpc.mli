@@ -21,3 +21,13 @@ val format_option : (Format.formatter -> 'a -> unit) -> Format.formatter -> 'a o
 
 (* a place to stash the session on asynchronous calls. not thread safe, obviously. *)
 val session : Rpc_server.session option ref
+
+module type Trace =
+sig
+  type t
+  val trace_call : string -> (Format.formatter -> unit) -> t
+  val trace_reply_ok : t -> (Format.formatter -> unit) -> unit
+  val trace_reply_exn : t -> exn -> (Format.formatter -> unit) -> unit
+end
+
+module Trace_of_formatter (F : sig val formatter : Format.formatter end) : Trace

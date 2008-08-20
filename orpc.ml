@@ -106,3 +106,19 @@ let format_option fmt'a fmt v =
     | Some v -> Format.fprintf fmt "@[<hv 1>(Some@ %a)@]" fmt'a v
 
 let session = ref None
+
+module type Trace =
+sig
+  type t
+  val trace_call : string -> (Format.formatter -> unit) -> t
+  val trace_reply_ok : t -> (Format.formatter -> unit) -> unit
+  val trace_reply_exn : t -> exn -> (Format.formatter -> unit) -> unit
+end
+
+module Trace_of_formatter (F : sig val formatter : Format.formatter end) : Trace =
+struct
+  type t = unit
+  let trace_call _ f = f F.formatter
+  let trace_reply_ok _ f = f F.formatter
+  let trace_reply_exn _ _ f = f F.formatter
+end

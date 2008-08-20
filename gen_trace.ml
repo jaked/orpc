@@ -24,25 +24,18 @@ let gen_trace_mli name (typedefs, excs, funcs, kinds) =
 
   let modules =
     List.map
-      (function
-        | Sync ->
-            <:sig_item@g<
-              module Sync
-                (T : sig val with_formatter : (Format.formatter -> unit) -> unit end)
-                (A : $uid:name$.Sync) : $uid:name$.Sync
-            >>
-        | Async ->
-            <:sig_item@g<
-              module Async
-                (T : sig val with_formatter : (Format.formatter -> unit) -> unit end)
-                (A : $uid:name$.Async) : $uid:name$.Async
-            >>
-        | Lwt ->
-            <:sig_item@g<
-              module Lwt
-                (T : sig val with_formatter : (Format.formatter -> unit) -> unit end)
-                (A : $uid:name$.Lwt) : $uid:name$.Lwt
-            >>)
+      (fun kind ->
+        let mt =
+          match kind with
+            | Sync -> "Sync"
+            | Async -> "Async"
+            | Lwt -> "Lwt" in
+        <:sig_item@g<
+          module $uid:mt$ :
+            functor (T : Orpc.Trace) ->
+              functor (A : $uid:name$.$uid:mt$) ->
+                $uid:name$.$uid:mt$
+        >>)
       kinds in
 
   let gen_typedef ds =
@@ -76,17 +69,17 @@ let gen_trace_ml name (typedefs, excs, funcs, kinds) =
       | [] -> name ^ "_aux"
       | _ -> name in
 
-  let rec gen_format t v =
+  let rec gen_format t =
     match t with
-      | Var (_, id) -> <:expr< $lid:format_p id$ fmt $v$ >>
-      | Unit _ -> <:expr< Format.fprintf fmt "()" >>
-      | Int _ -> <:expr< Format.fprintf fmt "%d" $v$ >>
-      | Int32 _ -> <:expr< Format.fprintf fmt "%ld" $v$ >>
-      | Int64 _ -> <:expr< Format.fprintf fmt "%Ld" $v$ >>
-      | Float _ -> <:expr< Format.fprintf fmt "%g" $v$ >>
-      | Bool _ -> <:expr< Format.fprintf fmt "%B" $v$ >>
-      | Char _ -> <:expr< Format.fprintf fmt "%C" $v$ >>
-      | String _ -> <:expr< Format.fprintf fmt "%S" $v$ >>
+      | Var (_, id) -> <:expr< $lid:format_p id$ >>
+      | Unit _ -> <:expr< fun fmt _ -> Format.fprintf fmt "()" >>
+      | Int _ -> <:expr< fun fmt v -> Format.fprintf fmt "%d" v >>
+      | Int32 _ -> <:expr< fun fmt v -> Format.fprintf fmt "%ld" v >>
+      | Int64 _ -> <:expr< fun fmt v -> Format.fprintf fmt "%Ld" v >>
+      | Float _ -> <:expr< fun fmt v -> Format.fprintf fmt "%g" v >>
+      | Bool _ -> <:expr< fun fmt v -> Format.fprintf fmt "%B" v >>
+      | Char _ -> <:expr< fun fmt v -> Format.fprintf fmt "%C" v >>
+      | String _ -> <:expr< fun fmt v -> Format.fprintf fmt "%S" v >>
 
       | Tuple (_, parts) ->
           let (pps, pes) = G.vars parts in
@@ -97,12 +90,13 @@ let gen_trace_ml name (typedefs, excs, funcs, kinds) =
               ")@]";
             ] in
           <:expr<
-            let ( $paCom_of_list pps$ ) = $v$ in
-            $G.apps
-              <:expr< Format.fprintf fmt $`str:spec$ >>
-              (List.fold_right2
-                  (fun t v l -> (gen_format_fun t)::v::l)
-                  parts pes [])$
+            fun fmt v ->
+              let ( $paCom_of_list pps$ ) = v in
+              $G.apps
+                <:expr< Format.fprintf fmt $`str:spec$ >>
+                (List.fold_right2
+                    (fun t v l -> (gen_format t)::v::l)
+                    parts pes [])$
           >>
 
       | Record (_, fields) ->
@@ -116,12 +110,13 @@ let gen_trace_ml name (typedefs, excs, funcs, kinds) =
             ] in
           let rb f p = <:patt< $Ast.IdAcc(_loc, Ast.IdUid (_loc, type_mod), Ast.IdLid (_loc, f.f_id))$ = $p$ >> in
           <:expr<
-            let { $paSem_of_list (List.map2 rb fields fps)$ } = $v$ in
-            $G.apps
-              <:expr< Format.fprintf fmt $`str:spec$ >>
-              (List.fold_right2
-                  (fun f v l -> (gen_format_fun f.f_typ)::v::l)
-                  fields fes [])$
+            fun fmt v ->
+              let { $paSem_of_list (List.map2 rb fields fps)$ } = v in
+              $G.apps
+                <:expr< Format.fprintf fmt $`str:spec$ >>
+                (List.fold_right2
+                    (fun f v l -> (gen_format f.f_typ)::v::l)
+                    fields fes [])$
           >>
 
       | Variant (_, arms) ->
@@ -137,7 +132,7 @@ let gen_trace_ml name (typedefs, excs, funcs, kinds) =
                   <:match_case<
                     $uid:type_mod$.$uid:id$ x ->
                       Format.fprintf fmt $`str:spec$
-                        $gen_format_fun t$
+                        $gen_format t$
                         x
                   >>
               | _ ->
@@ -155,47 +150,31 @@ let gen_trace_ml name (typedefs, excs, funcs, kinds) =
                       $G.apps
                         <:expr< Format.fprintf fmt $`str:spec$ >>
                         (List.fold_right2
-                            (fun t v l -> (gen_format_fun t)::v::l)
+                            (fun t v l -> (gen_format t)::v::l)
                             ts pes [])$
                   >> in
-          ExMat (_loc, v, mcOr_of_list (List.map mc arms))
-
-      | Array (_, t) -> <:expr< Orpc.format_array $gen_format_fun t$ fmt $v$ >>
-
-      | List (_, t) -> <:expr< Orpc.format_list $gen_format_fun t$ fmt $v$ >>
-
-      | Option (_, t) -> <:expr< Orpc.format_option $gen_format_fun t$ fmt $v$ >>
-
-      | Apply (_, mdl, id, args) ->
           <:expr<
-            $G.apps
-              (match mdl with
-                | None -> <:expr< $lid:format_ id$ >>
-                | Some mdl -> <:expr< $uid:mdl$ . $lid:format_ id$ >>)
-              (List.map gen_format_fun args)$
-            fmt $v$
+            fun fmt v -> $ExMat (_loc, <:expr< v >>, mcOr_of_list (List.map mc arms))$
           >>
 
-     | Arrow _ -> assert false
+      | Array (_, t) -> <:expr< Orpc.format_array $gen_format t$ >>
 
-  and gen_format_fun t =
-    (* XXX don't repeat yourself *)
-    match t with
-      | Var (_, id) -> <:expr< $lid:format_p id$ >>
-      | Array (_, t) -> <:expr< Orpc.format_array $gen_format_fun t$ >>
-      | List (_, t) -> <:expr< Orpc.format_list $gen_format_fun t$ >>
-      | Option (_, t) -> <:expr< Orpc.format_option $gen_format_fun t$ >>
+      | List (_, t) -> <:expr< Orpc.format_list $gen_format t$ >>
+
+      | Option (_, t) -> <:expr< Orpc.format_option $gen_format t$ >>
+
       | Apply (_, mdl, id, args) ->
           G.apps
             (match mdl with
               | None -> <:expr< $lid:format_ id$ >>
               | Some mdl -> <:expr< $uid:mdl$ . $lid:format_ id$ >>)
-            (List.map gen_format_fun args)
-      | _ -> <:expr< fun fmt v -> $gen_format t <:expr< v >>$ >> in
+            (List.map gen_format args)
 
-  let gen_format_fun_exc t =
-    match gen_format t <:expr< v >> with
-      | ExMat (loc, e, cases) ->
+     | Arrow _ -> assert false in
+
+  let gen_format_exc t =
+    match gen_format t with
+      | <:expr< fun fmt v -> $ExMat (loc, e, cases)$ >> ->
           <:expr<
             fun fmt v ->
               $ExMat (loc, e, McOr(g, cases, <:match_case@g< _ -> Format.fprintf fmt "<exn>" >>))$
@@ -211,7 +190,7 @@ let gen_trace_ml name (typedefs, excs, funcs, kinds) =
               $lid:format_ id$ =
               $G.funs_ids
                 (List.map format_p vars)
-                (gen_format_fun t)$
+                (gen_format t)$
             >>)
           ds in
       StVal (_loc, BTrue, biAnd_of_list es)$;;
@@ -234,122 +213,89 @@ let gen_trace_ml name (typedefs, excs, funcs, kinds) =
         "@]@."
       ] in
     <:str_item<
-      let $lid:format_ id ^ "'args"$ fmt =
+      let $lid:format_ id ^ "'call"$ fmt =
         $G.args_funs args
           <:expr<
             $G.apps
               <:expr< Format.fprintf fmt $`str:spec$ >>
               (List.fold_right2
-                  (fun t v l -> (gen_format_fun (typ_of_argtyp_option t))::v::l)
+                  (fun t v l -> (gen_format (typ_of_argtyp_option t))::v::l)
                   args es [])$
           >>$
-      let $lid:format_ id ^ "'res"$ fmt res =
+      let $lid:format_ id ^ "'reply"$ fmt res =
         Format.fprintf fmt "@[<hv 2><==@ %a@]@."
-          $gen_format_fun res$
+          $gen_format res$
           res
     >> in
 
-  let modules =
-    ListLabels.map kinds ~f:(function
+  let gen_module kind =
+    let mt =
+      match kind with
+        | Sync -> "Sync"
+        | Async -> "Async"
+        | Lwt -> "Lwt" in
 
-      | Sync ->
-          let func (_, id, args, res) =
-            <:str_item<
-              let $lid:id$ =
-                $G.args_funs args
+    let func (_, id, args, res) =
+
+      let trace_call =
+        <:expr< T.trace_call $`str:id$ (fun fmt -> $G.args_apps <:expr< $lid:format_ id ^ "'call"$ fmt >> args$) >> in
+      let trace_reply_ok =
+        <:expr< T.trace_reply_ok t (fun fmt -> $lid:format_ id ^ "'reply"$ fmt r) >> in
+      let trace_reply_exn =
+        <:expr< T.trace_reply_exn t e (fun fmt -> format_exn'reply fmt e) >> in
+
+      <:str_item<
+        let $lid:id$ =
+          $G.args_funs args
+            (match kind with
+              | Sync ->
                   <:expr<
-                    (try
-                        T.with_formatter (fun fmt ->
-                          $G.args_apps <:expr< $lid:format_ id ^ "'args"$ fmt >> args$);
-                      with _ -> ());
-                    try
-                      let r = $G.args_apps <:expr< A.$lid:id$ >> args$ in
-                      (try T.with_formatter (fun fmt -> $lid:format_ id ^ "'res"$ fmt r) with _ -> ());
-                      r
-                    with e ->
-                      (try T.with_formatter (fun fmt -> format_exn_res fmt e) with _ -> ());
-                      raise e
-                  >>$
-            >> in
-          <:str_item<
-            module Sync
-              (T : sig val with_formatter : (Format.formatter -> unit) -> unit end)
-              (A : $uid:name$.Sync) =
-            struct
-              $stSem_of_list (List.map func funcs)$
-            end
-          >>
+                    let t = $trace_call$ in
+                    try let r = $G.args_apps <:expr< A.$lid:id$ >> args$ in $trace_reply_ok$; r
+                    with e -> $trace_reply_exn$; raise e
+                  >>
 
-      | Async ->
-          let func (_, id, args, res) =
-            <:str_item<
-              let $lid:id$ =
-                $G.args_funs args
+              | Async ->
                   <:expr<
                     fun pass_reply ->
-                      (try
-                          T.with_formatter (fun fmt ->
-                            $G.args_apps <:expr< $lid:format_ id ^ "'args"$ fmt >> args$);
-                        with _ -> ());
+                      let t = $trace_call$ in
                       let pass_reply rf =
-                        (try
-                            let r = rf () in
-                            (try T.with_formatter (fun fmt -> $lid:format_ id ^ "'res"$ fmt r) with _ -> ())
-                          with e ->
-                            (try T.with_formatter (fun fmt -> format_exn_res fmt e) with _ -> ()));
+                        (try let r = rf () in $trace_reply_ok$
+                          with e -> $trace_reply_exn$);
                         pass_reply rf in
                       $G.args_apps <:expr< A.$lid:id$ >> args$ pass_reply
-                  >>$
-            >> in
-          <:str_item<
-            module Async
-              (T : sig val with_formatter : (Format.formatter -> unit) -> unit end)
-              (A : $uid:name$.Async) =
-            struct
-              $stSem_of_list (List.map func funcs)$
-            end
-          >>
+                  >>
 
-      | Lwt ->
-          let func (_, id, args, res) =
-            <:str_item<
-              let $lid:id$ =
-                $G.args_funs args
+              | Lwt ->
                   <:expr<
-                    (try
-                        T.with_formatter (fun fmt ->
-                          $G.args_apps <:expr< $lid:format_ id ^ "'args"$ fmt >> args$);
-                      with _ -> ());
+                    let t = $trace_call$ in
                     Lwt.try_bind
                       (fun () -> $G.args_apps <:expr< A.$lid:id$ >> args$)
-                      (fun r ->
-                        (try T.with_formatter (fun fmt -> $lid:format_ id ^ "'res"$ fmt r) with _ -> ());
-                        Lwt.return r)
-                      (fun e ->
-                        (try T.with_formatter (fun fmt -> format_exn_res fmt e) with _ -> ());
-                        Lwt.fail e)
-                  >>$
-            >> in
-          <:str_item<
-            module Lwt
-              (T : sig val with_formatter : (Format.formatter -> unit) -> unit end)
-              (A : $uid:name$.Lwt) =
-            struct
-              $stSem_of_list (List.map func funcs)$
-            end
-          >>) in
+                      (fun r -> $trace_reply_ok$; Lwt.return r)
+                      (fun e -> $trace_reply_exn$; Lwt.fail e)
+                  >>)$
+      >> in
+
+    <:str_item<
+      module $uid:mt$
+        (T : Orpc.Trace)
+        (A : $uid:name$.$uid:mt$) =
+      struct
+        $stSem_of_list (List.map func funcs)$
+      end
+    >> in
 
   <:str_item<
     let format_exn =
-      $gen_format_fun_exc
+      $gen_format_exc
         (Variant (g, List.map (fun (_, id, ts) -> (id, ts)) excs))$ ;;
 
-    let format_exn_res fmt exn =
+    let format_exn'reply fmt exn =
       Format.fprintf fmt "@[<hv 2><=!@ %a@]@." format_exn exn ;;
 
     $stSem_of_list (List.map gen_typedef typedefs)$;;
 
     $stSem_of_list (List.map gen_func funcs)$;;
 
-    $stSem_of_list modules$
+    $stSem_of_list (List.map gen_module kinds)$
   >>

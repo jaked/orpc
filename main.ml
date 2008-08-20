@@ -30,7 +30,6 @@ let do_file fn =
         "aux", Gen_aux.gen_aux_mli, Gen_aux.gen_aux_ml;
         "clnt", Gen_clnt.gen_clnt_mli, Gen_clnt.gen_clnt_ml;
         "srv", Gen_srv.gen_srv_mli, Gen_srv.gen_srv_ml;
-        "hook", Gen_hook.gen_hook_mli, Gen_hook.gen_hook_ml;
         "trace", Gen_trace.gen_trace_mli, Gen_trace.gen_trace_ml;
       ]
   with
