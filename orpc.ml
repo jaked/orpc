@@ -75,35 +75,35 @@ let unpack_orpc_result v =
     | Orpc_success v -> v
     | Orpc_failure e -> raise e
 
-let format_array fmt'a fmt v =
+let pp_array pp'a fmt v =
   Format.fprintf fmt "@[<hv 3>[| %a |]@]"
     (fun fmt v ->
       let len = Array.length v in
       for i = 0 to len - 1
       do
-        fmt'a fmt v.(i);
+        pp'a fmt v.(i);
         if i < len - 1
         then Format.fprintf fmt ";@ "
       done)
     v
 
-let format_list fmt'a fmt v =
+let pp_list pp'a fmt v =
   Format.fprintf fmt "@[<hv 2>[ %a ]@]"
     (fun fmt v ->
       let rec loop v =
         match v with
           | [] -> ()
-          | [v] -> fmt'a fmt v
+          | [v] -> pp'a fmt v
           | v::vs ->
-              Format.fprintf fmt "%a;@ " fmt'a v;
+              Format.fprintf fmt "%a;@ " pp'a v;
               loop vs in
       loop v)
     v
 
-let format_option fmt'a fmt v =
+let pp_option pp'a fmt v =
   match v with
     | None -> Format.fprintf fmt "None"
-    | Some v -> Format.fprintf fmt "@[<hv 1>(Some@ %a)@]" fmt'a v
+    | Some v -> Format.fprintf fmt "@[<hv 1>(Some@ %a)@]" pp'a v
 
 let session = ref None
 

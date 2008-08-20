@@ -160,3 +160,8 @@ let args_apps e args =
           | Optional (_, label, _) -> ExOlb (_loc, label, e))
       args in
   apps e es
+
+let args_arrows ?name args t =
+  arrows
+    (List.map (fun a -> labelled_ctyp a (gen_type ?name (typ_of_argtyp a))) args)
+    t

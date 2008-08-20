@@ -1,31 +1,22 @@
-let rec list_of_lst l =
-  match l with
-    | Protocol_aux.Nil -> []
-    | Protocol_aux.Cons (a, l) -> a :: list_of_lst l
-
 let rec lst_of_list l =
   match l with
     | [] -> Protocol_aux.Nil
     | a::l -> Protocol_aux.Cons (a, lst_of_list l)
 
-let print_int i = print_endline (string_of_int i)
-let print_int_list l = print_endline ("[ " ^ String.concat "; " (List.map string_of_int l) ^ " ]")
-let print_int_lst l = print_int_list (list_of_lst l)
-let print_int_pair (a, b) = print_endline ("( " ^ string_of_int a ^ ", " ^ string_of_int b ^ " )")
+module Pp = Protocol_trace.Pp
 
 ;;
 
 let c = Protocol_clnt.create_client (Rpc_client.Inet ("localhost", 9007)) Rpc.Tcp in
+let fmt = Format.err_formatter in
 
-print_int (Protocol_clnt.add1 c 6);
-print_int (Protocol_clnt.addN c ~n:7 6);
-print_int_list (Protocol_clnt.add1_list c [5;6;7]);
-print_int_lst (Protocol_clnt.add1_lst c (lst_of_list [7;8;9]));
-print_int_pair (Protocol_clnt.add1_pair c (17, 22));
+Pp.pp_add1'reply fmt (Pp.pp_add1'call fmt 6; Protocol_clnt.add1 c 6);
+Pp.pp_addN'reply fmt (Pp.pp_addN'call fmt ~n:7 6; Protocol_clnt.addN c ~n:7 6);
+Pp.pp_add1_list'reply fmt (Pp.pp_add1_list'call [5;6;7]; Protocol_clnt.add1_list c [5;6;7]);
+Pp.pp_add1_lst'reply fmt (Pp.pp_add1_lst'call (lst_of_list [7;8;9]); Protocol_clnt.add1_lst c (lst_of_list [7;8;9]));
+Pp.pp_add1_pair'reply fmt (Pp.pp_add1_pair'call (17, 22); Protocol_clnt.add1_pair c (17, 22));
 
-try Protocol_clnt.maybe_raise c true
-with
-  | Protocol_aux.Foo -> print_endline "Foo"
-  | Protocol_aux.Bar x -> print_endline ("Bar " ^ string_of_int x);
+try Pp.pp_maybe_raise'reply fmt (Pp.pp_maybe_raise'call fmt true; Protocol_clnt.maybe_raise c true)
+with e -> Pp.pp_exn'reply fmt e
 
 Rpc_client.shut_down c
