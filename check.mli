@@ -1,1 +1,1 @@
-val check_interface : S_ast.pre_interface -> S_ast.interface
+val check_interface : Types.pre_interface -> Types.interface

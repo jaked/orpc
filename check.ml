@@ -1,4 +1,4 @@
-open S_ast
+open Types
 open Error
 
 (* XXX check for circular type definitions. accept -rectypes? *)

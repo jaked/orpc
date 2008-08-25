@@ -1,6 +1,6 @@
 open Camlp4.PreCast
 open Ast
-open S_ast
+open Types
 open Util
 
 let _loc = Camlp4.PreCast.Loc.ghost
@@ -15,14 +15,15 @@ let xdr_arg id = "xdr_" ^ id ^ "'arg"
 let xdr_res id = "xdr_" ^ id ^ "'res"
 let to_ id = "to_" ^ id
 let to_p id = "to'" ^ id
-let to_arg id = "to_" ^ id ^ "'arg"
-let to_res id = "to_" ^ id ^ "'res"
 let of_ id = "of_" ^ id
 let of_p id = "of'" ^ id
-let of_arg id = "of_" ^ id ^ "'arg"
-let of_res id = "of_" ^ id ^ "'res"
 
 let aux_id name id = <:ident< $uid:name ^ "_aux"$ . $lid:id$ >>
+let to_arg name id = aux_id name ("to_" ^ id ^ "'arg")
+let to_res name id = aux_id name ("to_" ^ id ^ "'res")
+let of_arg name id = aux_id name ("of_" ^ id ^ "'arg")
+let of_res name id = aux_id name ("of_" ^ id ^ "'res")
+let program name = aux_id name "program"
 
 let string_of_kind = function
   | Sync -> "Sync"
@@ -33,6 +34,9 @@ let vars l =
   let ps = List.mapi (fun _ i -> <:patt< $lid:"x" ^ string_of_int i$ >>) l in
   let es = List.mapi (fun _ i -> <:expr< $lid:"x" ^ string_of_int i$ >>) l in
   (ps, es)
+
+let tvars vars =
+  List.map (fun v -> <:ctyp< '$lid:v$ >>) vars
 
 let arrows ts t =
   List.fold_right

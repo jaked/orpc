@@ -94,6 +94,11 @@ let typ_of_argtyp = function
   | Labelled (_, _, t) -> t
   | Optional (_, _, t) -> t
 
+let typ_of_argtyp_option = function
+  | Unlabelled (_, t) -> t
+  | Labelled (_, _, t) -> t
+  | Optional (loc, _, t) -> Option (loc, t)
+
 let loc_of_argtyp = function
   | Unlabelled (loc, _) -> loc
   | Labelled (loc, _, _) -> loc

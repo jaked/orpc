@@ -1,6 +1,6 @@
 open Camlp4.PreCast
 open Ast
-open S_ast
+open Types
 open Error
 
 let _ = let module M = Camlp4OCamlRevisedParser.Make(Syntax) in ()

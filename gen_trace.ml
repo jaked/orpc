@@ -1,6 +1,6 @@
 open Camlp4.PreCast
 open Ast
-open S_ast
+open Types
 open Util
 
 module G = Gen_common
@@ -9,11 +9,6 @@ let _loc = Camlp4.PreCast.Loc.ghost
 
 let pp_ id = "pp_" ^ id
 let pp_p id = "pp'" ^ id
-
-let typ_of_argtyp_option = function
-  | Unlabelled (_, t) -> t
-  | Labelled (_, _, t) -> t
-  | Optional (loc, _, t) -> Option (loc, t)
 
 let gen_module_type name (typedefs, _, funcs, mode) =
 

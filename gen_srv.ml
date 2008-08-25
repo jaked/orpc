@@ -1,6 +1,6 @@
 open Camlp4.PreCast
 open Ast
-open S_ast
+open Types
 open Util
 
 module G = Gen_common
@@ -65,20 +65,22 @@ let gen_srv_mli name (typedefs, excs, funcs, mode) =
 let gen_srv_ml name (typedefs, excs, funcs, mode) =
 
   let has_excs = excs <> [] in
+  let to_arg = G.to_arg name in
+  let of_res = G.of_res name in
 
   let sync_func (_, id, args, _) =
     <:expr<
       Rpc_server.Sync {
         Rpc_server.sync_name = $`str:id$;
         Rpc_server.sync_proc = fun x0 ->
-          $id:G.aux_id name (G.of_res id)$
+          $id:of_res id$
           $(fun body ->
               if has_excs
               then <:expr< Orpc.pack_orpc_result (fun () -> $body$) >>
               else body)
             (let (ps, _) = G.vars args in
              <:expr<
-               let ( $paCom_of_list ps$ ) = $id:G.aux_id name (G.to_arg id)$ x0 in
+               let ( $paCom_of_list ps$ ) = $id:to_arg id$ x0 in
                $G.args_apps <:expr< $lid:"proc_" ^ id$ >> args$
              >>)$
       }
@@ -95,10 +97,10 @@ let gen_srv_ml name (typedefs, excs, funcs, mode) =
               else <:expr< $body$ $body2$ >>)
             (let (ps, _) = G.vars args in
              <:expr<
-               let ( $paCom_of_list ps$ ) = $id:G.aux_id name (G.to_arg id)$ x0 in
+               let ( $paCom_of_list ps$ ) = $id:to_arg id$ x0 in
                $G.args_apps <:expr< $lid:"proc_" ^ id$ s >> args$
              >>)
-            <:expr< (fun y -> Rpc_server.reply s ($id:G.aux_id name (G.of_res id)$ y)) >>$
+            <:expr< (fun y -> Rpc_server.reply s ($id:of_res id$ y)) >>$
         }
       >> in
 
@@ -169,7 +171,7 @@ let gen_srv_ml name (typedefs, excs, funcs, mode) =
         <:expr<
           fun srv ->
             Rpc_server.bind
-              ?program_number ?version_number $id:G.aux_id name "program"$
+              ?program_number ?version_number $id:G.program name$
               $G.conses (List.map sync_func funcs)$
               srv
         >>$ ;;
@@ -183,7 +185,7 @@ let gen_srv_ml name (typedefs, excs, funcs, mode) =
         <:expr<
           fun srv ->
             Rpc_server.bind
-              ?program_number ?version_number $id:G.aux_id name "program"$
+              ?program_number ?version_number $id:G.program name$
               $G.conses (List.map async_func funcs)$
               srv
         >>$ ;;

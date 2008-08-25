@@ -1,6 +1,6 @@
 open Camlp4.PreCast
 open Ast
-open S_ast
+open Types
 open Util
 
 module G = Gen_common
@@ -72,6 +72,8 @@ let gen_clnt_mli name (typedefs, excs, funcs, mode) =
 let gen_clnt_ml name (typedefs, excs, funcs, mode) =
 
   let has_excs = excs <> [] in
+  let of_arg = G.of_arg name in
+  let to_res = G.to_res name in
 
   let sync_func (_, id, args, res) =
     (fun body ->
@@ -90,8 +92,8 @@ let gen_clnt_ml name (typedefs, excs, funcs, mode) =
           then <:expr< Orpc.unpack_orpc_result $body2$ >>
           else body2)
         <:expr<
-          $id:G.aux_id name (G.to_res id)$
-          (Rpc_client.sync_call client $`str:id$ ($id:G.aux_id name (G.of_arg id)$ x0))
+          $id:to_res id$
+          (Rpc_client.sync_call client $`str:id$ ($id:of_arg id$ x0))
         >>) in
 
   let async_func (_, id, args, res) =
@@ -106,17 +108,13 @@ let gen_clnt_ml name (typedefs, excs, funcs, mode) =
                 G.args_funs args
                   <:expr< fun pass_reply -> let x0 = ($exCom_of_list es$) in $body$ >>$
       >>)
-      (if has_excs
-      then
-        <:expr<
-          Rpc_client.add_call client $`str:id$ ($id:G.aux_id name (G.of_arg id)$ x0)
-          (fun g -> pass_reply (fun () -> Orpc.unpack_orpc_result ($id:G.aux_id name (G.to_res id)$ (g ()))))
-        >>
-      else
-        <:expr<
-          Rpc_client.add_call client $`str:id$ ($id:G.aux_id name (G.of_arg id)$ x0)
-          (fun g -> pass_reply (fun () -> $id:G.aux_id name (G.to_res id)$ (g ())))
-        >>) in
+      <:expr<
+        Rpc_client.add_call client $`str:id$ ($id:of_arg id$ x0)
+          (fun g -> pass_reply (fun () ->
+            $if has_excs
+            then <:expr< Orpc.unpack_orpc_result ($id:to_res id$ (g ())) >>
+            else <:expr< $id:to_res id$ (g ()) >>$))
+      >> in
 
   let modules =
     match mode with
@@ -171,7 +169,7 @@ let gen_clnt_ml name (typedefs, excs, funcs, mode) =
         ?version_number
         connector
         protocol =
-      Rpc_client.create ?program_number ?version_number esys connector protocol $id:G.aux_id name "program"$
+      Rpc_client.create ?program_number ?version_number esys connector protocol $id:G.program name$
 
     let create_portmapped_client ?esys ?program_number ?version_number host protocol =
       create_client ?esys ?program_number ?version_number (Rpc_client.Portmapped host) protocol
@@ -181,7 +179,7 @@ let gen_clnt_ml name (typedefs, excs, funcs, mode) =
         ?program_number
         ?version_number
         mode2 =
-      Rpc_client.create2 ?program_number ?version_number mode2 $id:G.aux_id name "program"$ esys ;;
+      Rpc_client.create2 ?program_number ?version_number mode2 $id:G.program name$ esys ;;
 
     $stSem_of_list (List.map sync_func funcs)$ ;;
 

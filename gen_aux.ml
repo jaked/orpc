@@ -1,16 +1,11 @@
 open Camlp4.PreCast
 open Ast
-open S_ast
+open Types
 open Util
 
 let _loc = Camlp4.PreCast.Loc.ghost
 
 module G = Gen_common
-
-let typ_of_argtyp_option = function
-  | Unlabelled (_, t) -> t
-  | Labelled (_, _, t) -> t
-  | Optional (loc, _, t) -> Option (loc, t)
 
 let gen_aux_mli name (typedefs, excs, funcs, mode) =
 
@@ -22,8 +17,7 @@ let gen_aux_mli name (typedefs, excs, funcs, mode) =
           tyAnd_of_list
             (List.map
                 (fun (_, vars, id, t) ->
-                  let vars = List.map (fun v -> <:ctyp< '$lid:v$ >>) vars in
-                  TyDcl (_loc, id, vars, G.gen_type qual_id t, []))
+                  TyDcl (_loc, id, G.tvars vars, G.gen_type qual_id t, []))
                 ds)) in
 
   let gen_typedef_funs ds =
@@ -31,7 +25,7 @@ let gen_aux_mli name (typedefs, excs, funcs, mode) =
       (List.map
           (fun (_, vars, id, _) ->
             let appd =
-              G.tapps <:ctyp< $id:qual_id id$ >> (List.map (fun v -> <:ctyp< '$lid:v$ >>) vars) in
+              G.tapps <:ctyp< $id:qual_id id$ >> (G.tvars vars) in
 
             <:sig_item<
               val $lid:G.to_ id$ :
@@ -67,20 +61,16 @@ let gen_aux_mli name (typedefs, excs, funcs, mode) =
       then Apply (_loc, Some "Orpc", "orpc_result", [res; Apply (_loc, None, "exn", [])])
       else res in
     let items aid arg =
+      let t = G.gen_type qual_id arg in
       <:sig_item<
-        type $lid:aid$ = $G.gen_type qual_id arg$
-        val $lid:G.to_ aid$ : Xdr.xdr_value -> $lid:aid$
-        val $lid:G.of_ aid$ : $lid:aid$ -> Xdr.xdr_value
+        val $lid:G.to_ aid$ : Xdr.xdr_value -> $t$
+        val $lid:G.of_ aid$ : $t$ -> Xdr.xdr_value
         val $lid:G.xdr aid$ : Xdr.xdr_type_term
       >> in
     <:sig_item<
       $items (G.res0 id) res$ ;;
       $items (G.arg id) arg$
       $items (G.res id) orpc_res$
-      $sgSem_of_list
-        (List.mapi
-            (fun arg i -> <:sig_item< type $lid:G.argi id i$ = $G.gen_type qual_id arg$ >>)
-            (List.map typ_of_argtyp args))$
     >> in
 
   <:sig_item<
@@ -134,7 +124,8 @@ let gen_aux_ml name (typedefs, excs, funcs, mode) =
           let rb f e = <:rec_binding< $id:qual_id f.f_id$ = $gen_to f.f_typ e$ >> in
           <:expr<
             match Xdr.dest_xv_struct_fast $x$ with
-              | [| $paSem_of_list fps$ |] -> $ExRec(_loc, rbSem_of_list (List.map2 rb fields fes), <:expr< >>)$
+              | [| $paSem_of_list fps$ |] ->
+                  $ExRec(_loc, rbSem_of_list (List.map2 rb fields fes), <:expr< >>)$
               | _ -> assert false
           >>
   
@@ -203,17 +194,23 @@ let gen_aux_ml name (typedefs, excs, funcs, mode) =
           let rb f p = <:patt< $id:qual_id f.f_id$ = $p$ >> in
           <:expr<
             let { $paSem_of_list (List.map2 rb fields fps)$ } = $v$ in
-            Xdr.XV_struct_fast [| $exSem_of_list (List.map2 (fun f v -> gen_of f.f_typ v) fields fes)$ |]
+            Xdr.XV_struct_fast
+              [| $exSem_of_list (List.map2 (fun f v -> gen_of f.f_typ v) fields fes)$ |]
           >>
   
        | Variant (_, arms) ->
            let mc (id, ts) i =
-             (* I don't see how to substitute just the constructor into these patterns *)
              match ts with
                | [] ->
-                   <:match_case< $id:qual_id id$ -> Xdr.XV_union_over_enum_fast ($`int:i$, Xdr.XV_void) >>
+                   <:match_case<
+                     $id:qual_id id$ ->
+                       Xdr.XV_union_over_enum_fast ($`int:i$, Xdr.XV_void)
+                   >>
                | [t] ->
-                   <:match_case< $id:qual_id id$ x -> Xdr.XV_union_over_enum_fast ($`int:i$, $gen_of t <:expr< x >>$) >>
+                   <:match_case<
+                     $id:qual_id id$ x ->
+                       Xdr.XV_union_over_enum_fast ($`int:i$, $gen_of t <:expr< x >>$)
+                   >>
                | _ ->
                    let (pps, pes) = G.vars ts in
                    <:match_case<
@@ -417,7 +414,6 @@ let gen_aux_ml name (typedefs, excs, funcs, mode) =
       else res in
     let items aid arg =
       <:str_item<
-        type $lid:aid$ = $G.gen_type qual_id arg$
         let $lid:G.to_ aid$ x = $gen_to arg <:expr< x >>$
         let $lid:G.of_ aid$ v = $gen_of arg <:expr< v >>$
         let $lid:G.xdr aid$ = $gen_xdr [] [] [] arg$
@@ -426,10 +422,6 @@ let gen_aux_ml name (typedefs, excs, funcs, mode) =
       $items (G.res0 id) res$ ;;
       $items (G.arg id) arg$ ;;
       $items (G.res id) orpc_res$ ;;
-      $stSem_of_list
-        (List.mapi
-            (fun arg i -> <:str_item< type $lid:G.argi id i$ = $G.gen_type qual_id arg$ >>)
-            (List.map typ_of_argtyp args))$
     >> in
 
   <:str_item<
