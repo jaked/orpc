@@ -1,13 +1,5 @@
 open Camlp4.PreCast
 
-val arg : string -> string
-val argi : string -> int -> string
-val res : string -> string
-val res0 : string -> string
-val xdr : string -> string
-val xdr_p : string -> string
-val xdr_arg : string -> string
-val xdr_res : string -> string
 val to_ : string -> string
 val to_p : string -> string
 val to_arg : string -> string -> Ast.ident

@@ -50,6 +50,7 @@ let rec parse_type t =
     | <:ctyp@loc< $t$ array >> -> Array (loc, parse_type t)
     | <:ctyp@loc< $t$ list >> -> List (loc, parse_type t)
     | <:ctyp@loc< $t$ option >> -> Option (loc, parse_type t)
+    | <:ctyp@loc< $t$ ref >> -> Ref (loc, parse_type t)
 
     | <:ctyp@loc< $_$ $_$ >> ->
         let rec apps args = function
@@ -59,8 +60,6 @@ let rec parse_type t =
           | <:ctyp< $uid:mname$.$lid:id$ >> -> Apply (loc, Some mname, id, args)
           | t -> ctyp_error t "expected TyApp or TyId" in
         apps [] t
-
-    | TyMan (_, _, t) -> parse_type t
 
     | <:ctyp@loc< $t1$ -> $t2$ >> -> Arrow (loc, parse_type t1, parse_type t2)
 
@@ -77,8 +76,12 @@ let parse_typedef loc t =
                 | TyQuo (_, v) -> v
                 | t -> ctyp_error t "expected type variable")
               tvars in
+          let eq, t =
+            match t with
+              | TyMan (_, TyId (_, eq), t) -> Some eq, t
+              | _ -> None, t in
           let t = parse_type t in
-          (loc, tvars, id, t) ::a
+          { td_loc = loc; td_vars = tvars; td_id = id; td_typ = t; td_eq = eq } ::a
     | t -> ctyp_error t "expected type declaration" in
   types t []
 
@@ -108,7 +111,7 @@ let parse_val loc id t =
     | args, ret -> (loc, id, args, ret)
 
 type s = {
-  typedefs : typedef list;
+  typedefs : typedefs list;
   exceptions : exc list;
   funcs : func list;
   module_types : module_type list;

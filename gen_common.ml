@@ -5,14 +5,6 @@ open Util
 
 let _loc = Camlp4.PreCast.Loc.ghost
 
-let arg id = id ^ "'arg"
-let argi id i = id ^ "'arg" ^ string_of_int i
-let res id = id ^ "'res"
-let res0 id = id ^ "'res0"
-let xdr id = "xdr_" ^ id
-let xdr_p id = "xdr'" ^ id
-let xdr_arg id = "xdr_" ^ id ^ "'arg"
-let xdr_res id = "xdr_" ^ id ^ "'res"
 let to_ id = "to_" ^ id
 let to_p id = "to'" ^ id
 let of_ id = "of_" ^ id
@@ -145,6 +137,7 @@ let gen_type qual_id t =
     | Array (_, t) -> <:ctyp< $gt t$ array >>
     | List (_, t) -> <:ctyp< $gt t$ list >>
     | Option (_, t) -> <:ctyp< $gt t$ option >>
+    | Ref (_, t) -> <:ctyp< $gt t$ ref >>
 
     | Apply (_, mdl, id, args) ->
         List.fold_left

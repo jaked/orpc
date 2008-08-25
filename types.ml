@@ -18,6 +18,7 @@ type typ =
     | Array of Loc.t * typ
     | List of Loc.t * typ
     | Option of Loc.t * typ
+    | Ref of Loc.t * typ
     | Apply of Loc.t * ident option * ident * typ list
     | Arrow of Loc.t * typ * typ
 
@@ -32,7 +33,15 @@ type argtyp =
     | Labelled of Loc.t * ident * typ
     | Optional of Loc.t * ident * typ
 
-type typedef = (Loc.t * (ident list) * ident * typ) list
+type typedef = {
+  td_loc : Loc.t;
+  td_vars : ident list;
+  td_id : ident;
+  td_typ : typ;
+  td_eq : Ast.ident option;
+}
+
+type typedefs = typedef list
 
 type exc = Loc.t * ident * (typ list)
 
@@ -42,11 +51,11 @@ type interface_kind = Sync | Async | Lwt
 
 type module_type = Loc.t * interface_kind * (func list)
 
-type pre_interface = typedef list * exc list * func list * module_type list
+type pre_interface = typedefs list * exc list * func list * module_type list
 
 type mode = Simple | Modules of interface_kind list
 
-type interface = typedef list * exc list * func list * mode
+type interface = typedefs list * exc list * func list * mode
 
 let loc_of_typ = function
   | Var (loc, _) -> loc
@@ -64,6 +73,7 @@ let loc_of_typ = function
   | Array (loc, _) -> loc
   | List (loc, _) -> loc
   | Option (loc, _) -> loc
+  | Ref (loc, _) -> loc
   | Apply (loc, _, _, _) -> loc
   | Arrow (loc, _, _) -> loc
 
@@ -86,6 +96,7 @@ let rec strip_locs_typ = function
   | Array (_, t) -> Array (g, strip_locs_typ t)
   | List (_, t) -> List (g, strip_locs_typ t)
   | Option (_, t) -> Option (g, strip_locs_typ t)
+  | Ref (_, t) -> Ref (g, strip_locs_typ t)
   | Apply (_, mdl, id, args) -> Apply (g, mdl, id, List.map strip_locs_typ args)
   | Arrow (_, t1, t2) -> Arrow (g, strip_locs_typ t1, strip_locs_typ t2)
 

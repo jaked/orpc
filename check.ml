@@ -16,7 +16,7 @@ let rec check_type ids vars btds t =
     | Tuple (_, parts) -> List.iter ct parts
     | Record (_, fields) -> List.iter (fun f -> ct f.f_typ) fields
     | Variant (_, arms) -> List.iter (fun (_, ts) -> List.iter ct ts) arms
-    | Array (_, t) | List (_, t) | Option (_, t) -> ct t
+    | Array (_, t) | List (_, t) | Option (_, t) -> ct t | Ref (_, t) -> ct t
 
     | Arrow (loc, _, _) -> loc_error loc "function type not supported"
 
@@ -40,7 +40,7 @@ let rec check_type ids vars btds t =
             else List.iter ct args
           with Not_found -> loc_error loc "unbound type constructor"
 
-let check_typedef ids btds (loc, vars, id, t) =
+let check_typedef ids btds { td_loc = loc; td_vars = vars; td_typ = t } =
   ignore
     (List.fold_left
         (fun vars v ->
@@ -55,7 +55,7 @@ let check_typedefs ids tds =
     (fun ids ds ->
       let ids, btds =
         List.fold_left
-          (fun (ids, btds) (loc, vars, id, _) ->
+          (fun (ids, btds) { td_loc = loc; td_vars = vars; td_id = id } ->
             if List.mem_assoc id ids
             then loc_error loc "type constructor already defined"
             else

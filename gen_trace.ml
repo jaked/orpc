@@ -13,11 +13,11 @@ let pp_p id = "pp'" ^ id
 let gen_module_type name (typedefs, _, funcs, mode) =
 
   let qual_id = G.qual_id_aux name mode in
-  
+
   let gen_typedef ds =
     let is =
       List.map
-        (fun (_, vars, id, _) ->
+        (fun { td_vars = vars; td_id = id } ->
           let appd =
             G.tapps <:ctyp< $id:qual_id id$ >> (List.map (fun v -> <:ctyp< '$lid:v$ >>) vars) in
 
@@ -129,7 +129,7 @@ let gen_trace_ml name (typedefs, excs, funcs, mode) =
             match ts with
               | [] ->
                   <:match_case<
-                    $id:qual_id id$ ->Format.fprintf fmt $`str:id$;
+                    $id:qual_id id$ -> Format.fprintf fmt $`str:id$;
                   >>
               | [t] ->
                   let spec = String.concat "" [ "@[<hv 1>("; id; "@ %a)@]"; ] in
@@ -167,6 +167,8 @@ let gen_trace_ml name (typedefs, excs, funcs, mode) =
 
       | Option (_, t) -> <:expr< Orpc.pp_option $gen_format t$ >>
 
+      | Ref (_, t) -> <:expr< fun fmt v -> Format.fprintf fmt "@[<hv 1>(ref@ %a)@]" $gen_format t$ v >>
+
       | Apply (_, _, id, args) ->
           G.apps
             <:expr< P.$lid:pp_ id$ >>
@@ -186,7 +188,7 @@ let gen_trace_ml name (typedefs, excs, funcs, mode) =
   let gen_typedef ds =
     let es =
       List.map
-        (fun (_, vars, id, t) ->
+        (fun { td_vars = vars; td_id = id; td_typ = t } ->
           <:binding<
             $lid:pp_ id$ =
             $G.funs_ids
