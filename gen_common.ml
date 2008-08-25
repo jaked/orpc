@@ -22,9 +22,12 @@ let of_p id = "of'" ^ id
 let of_arg id = "of_" ^ id ^ "'arg"
 let of_res id = "of_" ^ id ^ "'res"
 
-let aux_type name id = <:ctyp<$uid:name ^ "_aux"$ . $lid:id$>>
-let aux_val name id = <:expr<$uid:name ^ "_aux"$ . $lid:id$>>
-let aux_patt name id p = <:patt<$uid:name ^ "_aux"$ . $uid:id$ $p$>>
+let aux_id name id = <:ident< $uid:name ^ "_aux"$ . $lid:id$ >>
+
+let string_of_kind = function
+  | Sync -> "Sync"
+  | Async -> "Async"
+  | Lwt -> "Lwt"
 
 let vars l =
   let ps = List.mapi (fun _ i -> <:patt< $lid:"x" ^ string_of_int i$ >>) l in
@@ -64,78 +67,92 @@ let conses es =
     es
   <:expr< [] >>
 
-let rec gen_type ?name t =
-  let gen_type = gen_type ?name in
-  match t with
-  | Unit _ -> <:ctyp< unit >>
-  | Int _ -> <:ctyp< int >>
-  | Int32 _ -> <:ctyp< int32 >>
-  | Int64 _ -> <:ctyp< int64 >>
-  | Float _ -> <:ctyp< float >>
-  | Bool _ -> <:ctyp< bool >>
-  | Char _ -> <:ctyp< char >>
-  | String _ -> <:ctyp< string >>
+let is_uppercase = function
+  | 'A' .. 'Z' -> true
+  | _ -> false
 
-  | Var (_, v) -> <:ctyp< '$v$ >>
+let qual_id name mode id =
+  if is_uppercase id.[0]
+  then
+    match mode with
+      | Simple -> <:ident< $uid:id$ >>
+      | Modules _ ->
+          match id with
+            | "exn" -> <:ident< exn >>
+            | _ -> <:ident< $uid:name$.$uid:id$ >>
+  else
+    match mode with
+      | Simple -> <:ident< $lid:id$ >>
+      | Modules _ ->
+          match id with
+            | "exn" -> <:ident< exn >>
+            | _ -> <:ident< $uid:name$.$lid:id$ >>
 
-  | Tuple (_, parts) ->
-      let parts = List.map gen_type parts in
-      TyTup (_loc, tySta_of_list parts)
+let qual_id_aux name mode id =
+  if is_uppercase id.[0]
+  then
+    match mode with
+      | Simple -> <:ident< $uid:name ^ "_aux"$.$uid:id$ >>
+      | Modules _ -> <:ident< $uid:name$.$uid:id$ >>
+  else
+    match mode with
+      | Simple -> <:ident< $uid:name ^ "_aux"$.$lid:id$ >>
+      | Modules _ -> <:ident< $uid:name$.$lid:id$ >>
 
-  | Record (_, fields) ->
-      let fields =
-        List.map
-          (fun f ->
-            if f.f_mut
-            then <:ctyp< $lid:f.f_id$ : mutable $gen_type f.f_typ$ >>
-            else <:ctyp< $lid:f.f_id$ : $gen_type f.f_typ$ >>)
-          fields in
-      <:ctyp< { $tySem_of_list fields$ } >>
+let gen_type qual_id t =
 
-  | Variant (_, arms) ->
-      let arms =
-        List.map
-          (fun (id, ts) ->
-            let parts = List.map gen_type ts in
-            match parts with
-              | [] -> <:ctyp< $uid:id$ >>
-              | _ -> <:ctyp< $uid:id$ of $tyAnd_of_list parts$ >>)
+  let rec gt = function
+    | Unit _ -> <:ctyp< unit >>
+    | Int _ -> <:ctyp< int >>
+    | Int32 _ -> <:ctyp< int32 >>
+    | Int64 _ -> <:ctyp< int64 >>
+    | Float _ -> <:ctyp< float >>
+    | Bool _ -> <:ctyp< bool >>
+    | Char _ -> <:ctyp< char >>
+    | String _ -> <:ctyp< string >>
+
+    | Var (_, v) -> <:ctyp< '$v$ >>
+
+    | Tuple (_, parts) ->
+        let parts = List.map gt parts in
+        TyTup (_loc, tySta_of_list parts)
+
+    | Record (_, fields) ->
+        let fields =
+          List.map
+            (fun f ->
+              if f.f_mut
+              then <:ctyp< $lid:f.f_id$ : mutable $gt f.f_typ$ >>
+              else <:ctyp< $lid:f.f_id$ : $gt f.f_typ$ >>)
+            fields in
+        <:ctyp< { $tySem_of_list fields$ } >>
+
+    | Variant (_, arms) ->
+        let arms =
+          List.map
+            (fun (id, ts) ->
+              let parts = List.map gt ts in
+              match parts with
+                | [] -> <:ctyp< $uid:id$ >>
+                | _ -> <:ctyp< $uid:id$ of $tyAnd_of_list parts$ >>)
           arms in
-      TySum (_loc, tyOr_of_list arms)
+        TySum (_loc, tyOr_of_list arms)
 
-  | Array (_, t) -> <:ctyp< $gen_type t$ array >>
-  | List (_, t) -> <:ctyp< $gen_type t$ list >>
-  | Option (_, t) -> <:ctyp< $gen_type t$ option >>
+    | Array (_, t) -> <:ctyp< $gt t$ array >>
+    | List (_, t) -> <:ctyp< $gt t$ list >>
+    | Option (_, t) -> <:ctyp< $gt t$ option >>
 
-  | Apply (_, mdl, id, args) ->
-      List.fold_left
-        (fun t a -> <:ctyp< $gen_type a$ $t$ >>)
-        (match mdl, name, id with
-          | _, _, "exn" (* hack *)
-          | None, None, _ -> <:ctyp< $lid:id$ >>
-          | None, Some name, _
-          | Some name, _, _ -> <:ctyp< $uid:name$.$lid:id$ >>)
-        args
+    | Apply (_, mdl, id, args) ->
+        List.fold_left
+          (fun t a -> <:ctyp< $gt a$ $t$ >>)
+          (match mdl with
+            | None -> <:ctyp< $id:qual_id id$ >>
+            | Some mdl -> <:ctyp< $uid:mdl$.$lid:id$ >>)
+          args
 
-  | Arrow _ -> assert false
+    | Arrow _ -> assert false in
 
-let labelled_ctyp at t =
-  match at with
-    | Unlabelled _ -> t
-    | Labelled (_, label, _) -> TyLab (_loc, label, t)
-    | Optional (_, label, _) -> TyOlb (_loc, label, t)
-
-let labelled_patt at p =
-  match at with
-    | Unlabelled _ -> p
-    | Labelled (_, label, _) -> PaLab (_loc, label, p)
-    | Optional (_, label, _) -> PaOlb (_loc, label, p)
-
-let labelled_expr at e =
-  match at with
-    | Unlabelled _ -> e
-    | Labelled (_, label, _) -> ExLab (_loc, label, e)
-    | Optional (_, label, _) -> ExOlb (_loc, label, e)
+  gt t
 
 let args_funs args e =
   let ps =
@@ -161,7 +178,14 @@ let args_apps e args =
       args in
   apps e es
 
-let args_arrows ?name args t =
-  arrows
-    (List.map (fun a -> labelled_ctyp a (gen_type ?name (typ_of_argtyp a))) args)
-    t
+let args_arrows qual_id args t =
+  let ts =
+    List.map
+      (fun a ->
+        let t = gen_type qual_id (typ_of_argtyp a) in
+        match a with
+          | Unlabelled _ -> t
+          | Labelled (_, label, _) -> TyLab (_loc, label, t)
+          | Optional (_, label, _) -> TyOlb (_loc, label, t))
+      args in
+  arrows ts t

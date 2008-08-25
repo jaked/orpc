@@ -15,19 +15,16 @@ let typ_of_argtyp_option = function
   | Labelled (_, _, t) -> t
   | Optional (loc, _, t) -> Option (loc, t)
 
-let gen_module_type name (typedefs, _, funcs, kinds) =
+let gen_module_type name (typedefs, _, funcs, mode) =
 
-  let type_mod =
-    match kinds with
-      | [] -> name ^ "_aux"
-      | _ -> name in
-
+  let qual_id = G.qual_id_aux name mode in
+  
   let gen_typedef ds =
     let is =
       List.map
         (fun (_, vars, id, _) ->
           let appd =
-            G.tapps <:ctyp< $uid:type_mod$ . $lid:id$ >> (List.map (fun v -> <:ctyp< '$lid:v$ >>) vars) in
+            G.tapps <:ctyp< $id:qual_id id$ >> (List.map (fun v -> <:ctyp< '$lid:v$ >>) vars) in
 
           <:sig_item<
             val $lid:pp_ id$ :
@@ -38,12 +35,10 @@ let gen_module_type name (typedefs, _, funcs, kinds) =
         ds in
     sgSem_of_list is in
 
-  let name = match kinds with [] -> None | _ -> Some name in
-
   let gen_func  (_, id, args, res) =
     <:sig_item<
-      val $lid:pp_ id ^ "'call"$ : Format.formatter -> $G.args_arrows ?name args <:ctyp< unit >>$ ;;
-      val $lid:pp_ id ^ "'reply"$ : Format.formatter -> $G.gen_type ?name res$ -> unit ;;
+      val $lid:pp_ id ^ "'call"$ : Format.formatter -> $G.args_arrows qual_id args <:ctyp< unit >>$ ;;
+      val $lid:pp_ id ^ "'reply"$ : Format.formatter -> $G.gen_type qual_id res$ -> unit ;;
     >> in
 
   <:sig_item<
@@ -53,26 +48,25 @@ let gen_module_type name (typedefs, _, funcs, kinds) =
     val pp_exn'reply : Format.formatter -> exn -> unit;;
   >>
 
-let gen_trace_mli name (typedefs, excs, funcs, kinds) =
+let gen_trace_mli name (typedefs, excs, funcs, mode) =
 
   let modules =
-    List.map
-      (fun kind ->
-        let mt =
-          match kind with
-            | Sync -> "Sync"
-            | Async -> "Async"
-            | Lwt -> "Lwt" in
-        <:sig_item@g<
-          module $uid:mt ^ "_pp"$ (P : Pp) (T : Orpc.Trace) (A : $uid:name$.$uid:mt$) : $uid:name$.$uid:mt$
-          module $uid:mt$ (T : Orpc.Trace) (A : $uid:name$.$uid:mt$) : $uid:name$.$uid:mt$
-        >>)
-      kinds in
+    match mode with
+      | Simple -> []
+      | Modules kinds ->
+          List.map
+            (fun kind ->
+              let mt = G.string_of_kind kind in
+              <:sig_item<
+                module $uid:mt ^ "_pp"$ (P : Pp) (T : Orpc.Trace) (A : $uid:name$.$uid:mt$) : $uid:name$.$uid:mt$
+                module $uid:mt$ (T : Orpc.Trace) (A : $uid:name$.$uid:mt$) : $uid:name$.$uid:mt$
+              >>)
+            kinds in
 
   <:sig_item<
     module type Pp =
     sig
-      $gen_module_type name (typedefs, excs, funcs, kinds)$
+      $gen_module_type name (typedefs, excs, funcs, mode)$
     end
 
     module Pp_pp (P : Pp) : Pp ;;
@@ -81,12 +75,9 @@ let gen_trace_mli name (typedefs, excs, funcs, kinds) =
     $sgSem_of_list modules$
   >>
 
-let gen_trace_ml name (typedefs, excs, funcs, kinds) =
+let gen_trace_ml name (typedefs, excs, funcs, mode) =
 
-  let type_mod =
-    match kinds with
-      | [] -> name ^ "_aux"
-      | _ -> name in
+  let qual_id = G.qual_id_aux name mode in
 
   let rec gen_format t =
     match t with
@@ -127,7 +118,7 @@ let gen_trace_ml name (typedefs, excs, funcs, kinds) =
                 (List.map (fun f -> "@[<hov 2>" ^ f.f_id ^ "@ =@ %a@]") fields);
               "@]@ }@]";
             ] in
-          let rb f p = <:patt< $Ast.IdAcc(_loc, Ast.IdUid (_loc, type_mod), Ast.IdLid (_loc, f.f_id))$ = $p$ >> in
+          let rb f p = <:patt< $id:qual_id f.f_id$ = $p$ >> in
           <:expr<
             fun fmt v ->
               let { $paSem_of_list (List.map2 rb fields fps)$ } = v in
@@ -143,13 +134,12 @@ let gen_trace_ml name (typedefs, excs, funcs, kinds) =
             match ts with
               | [] ->
                   <:match_case<
-                    $uid:type_mod$.$uid:id$ ->
-                      Format.fprintf fmt $`str:id$;
+                    $id:qual_id id$ ->Format.fprintf fmt $`str:id$;
                   >>
               | [t] ->
                   let spec = String.concat "" [ "@[<hv 1>("; id; "@ %a)@]"; ] in
                   <:match_case<
-                    $uid:type_mod$.$uid:id$ x ->
+                    $id:qual_id id$ x ->
                       Format.fprintf fmt $`str:spec$
                         $gen_format t$
                         x
@@ -165,7 +155,7 @@ let gen_trace_ml name (typedefs, excs, funcs, kinds) =
                       ")@])@]";
                     ] in
                   <:match_case<
-                    $uid:type_mod$.$uid:id$ ( $paCom_of_list pps$ ) ->
+                    $id:qual_id id$ ( $paCom_of_list pps$ ) ->
                       $G.apps
                         <:expr< Format.fprintf fmt $`str:spec$ >>
                         (List.fold_right2
@@ -182,11 +172,9 @@ let gen_trace_ml name (typedefs, excs, funcs, kinds) =
 
       | Option (_, t) -> <:expr< Orpc.pp_option $gen_format t$ >>
 
-      | Apply (_, mdl, id, args) ->
+      | Apply (_, _, id, args) ->
           G.apps
-            (match mdl with
-              | None -> <:expr< P.$lid:pp_ id$ >>
-              | Some mdl -> <:expr< $uid:mdl$ . $lid:pp_ id$ >>) (* XXX *)
+            <:expr< P.$lid:pp_ id$ >>
             (List.map gen_format args)
 
      | Arrow _ -> assert false in
@@ -196,24 +184,22 @@ let gen_trace_ml name (typedefs, excs, funcs, kinds) =
       | <:expr< fun fmt v -> $ExMat (loc, e, cases)$ >> ->
           <:expr<
             fun fmt v ->
-              $ExMat (loc, e, McOr(g, cases, <:match_case@g< _ -> Format.fprintf fmt "<exn>" >>))$
+              $ExMat (loc, e, McOr(g, cases, <:match_case< _ -> Format.fprintf fmt "<exn>" >>))$
           >>
       | _ -> assert false in
 
   let gen_typedef ds =
-    <:str_item<
-      $let es =
-        List.map
-          (fun (_, vars, id, t) ->
-            <:binding<
-              $lid:pp_ id$ =
-              $G.funs_ids
-                (List.map pp_p vars)
-                (gen_format t)$
-            >>)
-          ds in
-      StVal (_loc, BFalse, biAnd_of_list es)$;;
-    >> in
+    let es =
+      List.map
+        (fun (_, vars, id, t) ->
+          <:binding<
+            $lid:pp_ id$ =
+            $G.funs_ids
+              (List.map pp_p vars)
+              (gen_format t)$
+          >>)
+        ds in
+    StVal (_loc, BFalse, biAnd_of_list es) in
 
   let gen_func (_, id, args, res) =
     let (_, es) = G.vars args in
@@ -248,12 +234,6 @@ let gen_trace_ml name (typedefs, excs, funcs, kinds) =
     >> in
 
   let gen_module kind =
-    let mt =
-      match kind with
-        | Sync -> "Sync"
-        | Async -> "Async"
-        | Lwt -> "Lwt" in
-
     let func (_, id, args, res) =
 
       let trace_call =
@@ -295,6 +275,7 @@ let gen_trace_ml name (typedefs, excs, funcs, kinds) =
                   >>)$
       >> in
 
+    let mt = G.string_of_kind kind in
     <:str_item<
       module $uid:mt ^ "_pp"$
         (P : Pp)
@@ -307,10 +288,15 @@ let gen_trace_ml name (typedefs, excs, funcs, kinds) =
       module $uid:mt$ = $uid:mt ^ "_pp"$ (Pp)
     >> in
 
+  let modules =
+    match mode with
+      | Simple -> []
+      | Modules kinds -> List.map gen_module kinds in
+
   <:str_item<
     module type Pp =
     sig
-      $gen_module_type name (typedefs, excs, funcs, kinds)$
+      $gen_module_type name (typedefs, excs, funcs, mode)$
     end
 
     module Pp_pp (P : Pp) : Pp =
@@ -332,5 +318,5 @@ let gen_trace_ml name (typedefs, excs, funcs, kinds) =
       include Pp_pp(Pp)
     end
 
-    $stSem_of_list (List.map gen_module kinds)$
+    $stSem_of_list modules$
   >>

@@ -185,6 +185,11 @@ let check_interface (typedefs, excs, funcs, mts) =
   check_excs ids excs;
   check_funcs ids [] funcs;
 
-  List.iter (check_module_type_funcs funcs) mts;
+  let mode =
+    match mts with
+      | [] -> Simple
+      | _ ->
+          List.iter (check_module_type_funcs funcs) mts;
+          Modules (List.map (fun (_, kind, _) -> kind) mts) in
 
-  (typedefs, excs, funcs, List.map (fun (_, kind, _) -> kind) mts)
+  (typedefs, excs, funcs, mode)

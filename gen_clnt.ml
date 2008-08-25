@@ -7,24 +7,21 @@ module G = Gen_common
 
 let _loc = Camlp4.PreCast.Loc.ghost
 
-let gen_clnt_mli name (typedefs, excs, funcs, kinds) =
+let gen_clnt_mli name (typedefs, excs, funcs, mode) =
+
+  let qual_id = G.qual_id_aux name mode in
 
   let modules =
-    List.map
-      (function
-        | Sync ->
-            <:sig_item<
-              module Sync(C : sig val with_client : (Rpc_client.t -> 'a) -> 'a end) : $uid:name$.Sync
-            >>
-        | Async ->
-            <:sig_item<
-              module Async(C : sig val with_client : (Rpc_client.t -> 'a) -> 'a end) : $uid:name$.Async
-            >>
-        | Lwt ->
-            <:sig_item<
-              module Lwt(C : sig val with_client : (Rpc_client.t -> 'a) -> 'a end) : $uid:name$.Lwt
-            >>)
-      kinds in
+    match mode with
+      | Simple -> []
+      | Modules kinds ->
+          List.map
+            (fun kind ->
+              let mt = G.string_of_kind kind in
+              <:sig_item<
+                module $uid:mt$(C : sig val with_client : (Rpc_client.t -> 'a) -> 'a end) : $uid:name$.$uid:mt$
+              >>)
+            kinds in
 
   <:sig_item<
     val create_client :
@@ -55,11 +52,7 @@ let gen_clnt_mli name (typedefs, excs, funcs, kinds) =
           (fun (_, id, args, res) ->
             <:sig_item<
               val $lid:id$ : Rpc_client.t ->
-                $G.arrows
-                  (List.mapi
-                      (fun a i -> G.labelled_ctyp a (G.aux_type name (G.argi id i)))
-                      args)
-                  (G.aux_type name (G.res0 id))$
+                $G.args_arrows qual_id args (G.gen_type qual_id res)$
             >>)
           funcs)$ ;;
 
@@ -68,134 +61,108 @@ let gen_clnt_mli name (typedefs, excs, funcs, kinds) =
           (fun (_, id, args, res) ->
             <:sig_item<
               val $lid:id ^ "'async"$ : Rpc_client.t ->
-                $G.arrows
-                  (List.mapi
-                      (fun a i -> G.labelled_ctyp a (G.aux_type name (G.argi id i)))
-                      args)
-                  <:ctyp< ((unit -> $G.aux_type name (G.res0 id)$) -> unit) -> unit >>$
+                $G.args_arrows qual_id args
+                  <:ctyp< ((unit -> $G.gen_type qual_id res$) -> unit) -> unit >>$
             >>)
           funcs)$ ;;
 
     $sgSem_of_list modules$
   >>
 
-let gen_clnt_ml name (typedefs, excs, funcs, kinds) =
+let gen_clnt_ml name (typedefs, excs, funcs, mode) =
 
-  let sync_func ~has_excs (_, id, args, res) =
+  let has_excs = excs <> [] in
+
+  let sync_func (_, id, args, res) =
     (fun body ->
       <:str_item<
         let $lid:id$ = fun client ->
           $match args with
             | [] -> assert false
-            | [a] -> <:expr< fun $G.labelled_patt a <:patt< arg >>$ -> $body$ >>
+            | [a] -> G.args_funs args body
             | _ ->
                 let (_, es) = G.vars args in
                 G.args_funs args
-                  <:expr< let arg = ($exCom_of_list es$) in $body$ >>$
+                  <:expr< let x0 = ($exCom_of_list es$) in $body$ >>$
       >>)
       ((fun body2 ->
           if has_excs
           then <:expr< Orpc.unpack_orpc_result $body2$ >>
           else body2)
         <:expr<
-          $G.aux_val name (G.to_res id)$
-          (Rpc_client.sync_call client $`str:id$ ($G.aux_val name (G.of_arg id)$ arg))
+          $id:G.aux_id name (G.to_res id)$
+          (Rpc_client.sync_call client $`str:id$ ($id:G.aux_id name (G.of_arg id)$ x0))
         >>) in
 
-  let async_func ~has_excs (_, id, args, res) =
+  let async_func (_, id, args, res) =
     (fun body ->
       <:str_item<
         let $lid:id ^ "'async"$ = fun client ->
           $match args with
             | [] -> assert false
-            | [a] -> <:expr< fun $G.labelled_patt a <:patt< arg >>$ pass_reply -> $body$ >>
+            | [a] -> G.args_funs args <:expr< fun pass_reply -> $body$ >>
             | _ ->
                 let (_, es) = G.vars args in
                 G.args_funs args
-                  <:expr< fun pass_reply -> let arg = ($exCom_of_list es$) in $body$ >>$
+                  <:expr< fun pass_reply -> let x0 = ($exCom_of_list es$) in $body$ >>$
       >>)
       (if has_excs
       then
         <:expr<
-          Rpc_client.add_call client $`str:id$ ($G.aux_val name (G.of_arg id)$ arg)
-          (fun g -> pass_reply (fun () -> Orpc.unpack_orpc_result ($G.aux_val name (G.to_res id)$ (g ()))))
+          Rpc_client.add_call client $`str:id$ ($id:G.aux_id name (G.of_arg id)$ x0)
+          (fun g -> pass_reply (fun () -> Orpc.unpack_orpc_result ($id:G.aux_id name (G.to_res id)$ (g ()))))
         >>
       else
         <:expr<
-          Rpc_client.add_call client $`str:id$ ($G.aux_val name (G.of_arg id)$ arg)
-          (fun g -> pass_reply (fun () -> $G.aux_val name (G.to_res id)$ (g ())))
+          Rpc_client.add_call client $`str:id$ ($id:G.aux_id name (G.of_arg id)$ x0)
+          (fun g -> pass_reply (fun () -> $id:G.aux_id name (G.to_res id)$ (g ())))
         >>) in
 
   let modules =
-    List.map
-      (function
-        | Sync ->
-            let func (_, id, args, res) =
+    match mode with
+      | Simple -> []
+      | Modules kinds ->
+          List.map
+            (fun kind ->
+              let func (_, id, args, res) =
+                <:str_item<
+                  let $lid:id$ =
+                    $G.args_funs args
+                      (match kind with
+                        | Sync ->
+                            <:expr<
+                              C.with_client
+                              (fun c -> $G.args_apps <:expr< $lid:id$ c >> args$)
+                            >>
+                        | Async ->
+                            <:expr<
+                              fun pass_reply ->
+                                C.with_client
+                                  (fun c ->
+                                    $G.args_apps <:expr< $lid:id ^ "'async"$ c >> args$
+                                      pass_reply)
+                            >>
+                        | Lwt ->
+                            <:expr<
+                              C.with_client
+                              (fun c ->
+                                let res = Lwt.wait () in
+                                $G.args_apps <:expr< $lid:id ^ "'async"$ c >> args$
+                                  (fun r ->
+                                    try Lwt.wakeup res (r ())
+                                    with exn -> Lwt.wakeup_exn res exn);
+                                res)
+                            >>)$
+                >> in
+
               <:str_item<
-                let $lid:id$ =
-                  $G.args_funs args
-                    <:expr<
-                      C.with_client
-                        (fun c ->
-                          $G.args_apps <:expr< $lid:id$ c >> args$)
-                    >>$
-              >> in
+                module $uid:G.string_of_kind kind$(C : sig val with_client : (Rpc_client.t -> 'a) -> 'a end) =
+                struct
+                  $stSem_of_list (List.map func funcs)$
+                end
+              >>)
 
-            <:str_item<
-              module Sync(C : sig val with_client : (Rpc_client.t -> 'a) -> 'a end) =
-              struct
-                $stSem_of_list (List.map func funcs)$
-              end
-            >>
-
-        | Async ->
-            let func (_, id, args, res) =
-              <:str_item<
-                let $lid:id$ =
-                  $G.args_funs args
-                    <:expr<
-                      fun pass_reply ->
-                        C.with_client
-                          (fun c ->
-                            $G.args_apps <:expr< $lid:id ^ "'async"$ c >> args$
-                            pass_reply)
-                    >>$
-              >> in
-
-            <:str_item<
-              module Async(C : sig val with_client : (Rpc_client.t -> 'a) -> 'a end) =
-              struct
-                $stSem_of_list (List.map func funcs)$
-              end
-            >>
-
-        | Lwt ->
-            let func (_, id, args, res) =
-              <:str_item<
-                let $lid:id$ =
-                  $G.args_funs args
-                    <:expr<
-                        C.with_client
-                          (fun c ->
-                            let res = Lwt.wait () in
-                            $G.args_apps <:expr< $lid:id ^ "'async"$ c >> args$
-                            (fun r ->
-                              try Lwt.wakeup res (r ())
-                              with exn -> Lwt.wakeup_exn res exn);
-                            res)
-                    >>$
-              >> in
-
-            <:str_item<
-              module Lwt(C : sig val with_client : (Rpc_client.t -> 'a) -> 'a end) =
-              struct
-                $stSem_of_list (List.map func funcs)$
-              end
-            >>)
-
-      kinds in
-
-  let has_excs = excs <> [] in
+            kinds in
 
   <:str_item<
     let create_client
@@ -204,7 +171,7 @@ let gen_clnt_ml name (typedefs, excs, funcs, kinds) =
         ?version_number
         connector
         protocol =
-      Rpc_client.create ?program_number ?version_number esys connector protocol $G.aux_val name "program"$
+      Rpc_client.create ?program_number ?version_number esys connector protocol $id:G.aux_id name "program"$
 
     let create_portmapped_client ?esys ?program_number ?version_number host protocol =
       create_client ?esys ?program_number ?version_number (Rpc_client.Portmapped host) protocol
@@ -214,11 +181,11 @@ let gen_clnt_ml name (typedefs, excs, funcs, kinds) =
         ?program_number
         ?version_number
         mode2 =
-      Rpc_client.create2 ?program_number ?version_number mode2 $G.aux_val name "program"$ esys ;;
+      Rpc_client.create2 ?program_number ?version_number mode2 $id:G.aux_id name "program"$ esys ;;
 
-    $stSem_of_list (List.map (sync_func ~has_excs) funcs)$ ;;
+    $stSem_of_list (List.map sync_func funcs)$ ;;
 
-    $stSem_of_list (List.map (async_func ~has_excs) funcs)$ ;;
+    $stSem_of_list (List.map async_func funcs)$ ;;
 
     $stSem_of_list modules$
   >>
