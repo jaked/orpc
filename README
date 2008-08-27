@@ -1,0 +1,8 @@
+This is orpc, a tool for generating clients and servers for use with
+Ocamlnet's ONC RPC implementation. See
+
+  http://code.google.com/p/orpc2/
+
+for details and installation instructions.
+
+Orpc is written by Jake Donham with contributions from Mike Wells.
