@@ -1,0 +1,2 @@
+<*.ml*> : camlp4of, use_camlp4_full
+<*.{byte,native}> : use_dynlink, use_camlp4_full

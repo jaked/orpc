@@ -1,31 +1,23 @@
-FILES=\
-orpc.cma orpc.cmxa orpc.a \
-orpc.mli orpc.cmi \
+JSPKGLIST=
 
-BFILES=$(addprefix _build/src/orpc/,$(FILES))
-
-LWT_FILES=\
-lwt-equeue.cma lwt-equeue.cmxa lwt-equeue.a \
-lwt.mli lwt.cmi \
-lwt_mutex.mli lwt_mutex.cmi \
-lwt_pool.mli lwt_pool.cmi \
-lwt_timeout.mli lwt_timeout.cmi \
-lwt_unix.mli lwt_unix.cmi \
-lwt_util.mli lwt_util.cmi \
-
-LWT_BFILES=$(addprefix _build/src/lwt-equeue/,$(LWT_FILES))
+PKGLIST=generator orpc lwt-equeue $(JSPKGLIST)
 
 all:
-	ocamlbuild src/generator/main.native src/orpc/orpc.cma src/orpc/orpc.cmxa src/lwt-equeue/lwt-equeue.cma src/lwt-equeue/lwt-equeue.cmxa
+	for pkg in $(PKGLIST); do \
+		$(MAKE) -C src/$$pkg all || exit; \
+	done
 
-install: all
-	ocamlfind install orpc src/orpc/META $(BFILES)
-	ocamlfind install lwt-equeue src/lwt-equeue/META $(LWT_BFILES)
-	cp _build/src/generator/main.native `ocamlfind printconf stdlib`/../../bin/orpc
+install:
+	for pkg in $(PKGLIST); do \
+		$(MAKE) -C src/$$pkg install || exit; \
+	done
 
 uninstall:
-	ocamlfind remove orpc
-	ocamlfind remove lwt-equeue
+	for pkg in $(PKGLIST); do \
+		$(MAKE) -C src/$$pkg uninstall || exit; \
+	done
 
 clean:
-	ocamlbuild -clean
+	for pkg in $(PKGLIST); do \
+		$(MAKE) -C src/$$pkg clean || exit; \
+	done
