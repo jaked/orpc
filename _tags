@@ -1,6 +1,6 @@
 <**/*.ml*> : camlp4of, use_camlp4_full
 
-<orpc.ml*> : pkg_rpc
-<lwt-equeue/lwt_unix.ml*> : pkg_equeue
+<src/orpc/orpc.ml*> : pkg_rpc
+<src/lwt-equeue/lwt_unix.ml*> : pkg_equeue
 
-<*.{byte,native}> : use_dynlink, use_camlp4_full
+<**/*.{byte,native}> : use_dynlink, use_camlp4_full

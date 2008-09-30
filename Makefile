@@ -2,7 +2,7 @@ FILES=\
 orpc.cma orpc.cmxa orpc.a \
 orpc.mli orpc.cmi \
 
-BFILES=$(addprefix _build/,$(FILES))
+BFILES=$(addprefix _build/src/orpc/,$(FILES))
 
 LWT_FILES=\
 lwt-equeue.cma lwt-equeue.cmxa lwt-equeue.a \
@@ -13,15 +13,15 @@ lwt_timeout.mli lwt_timeout.cmi \
 lwt_unix.mli lwt_unix.cmi \
 lwt_util.mli lwt_util.cmi \
 
-LWT_BFILES=$(addprefix _build/lwt-equeue/,$(LWT_FILES))
+LWT_BFILES=$(addprefix _build/src/lwt-equeue/,$(LWT_FILES))
 
 all:
-	ocamlbuild main.native orpc.cma orpc.cmxa lwt-equeue/lwt-equeue.cma lwt-equeue/lwt-equeue.cmxa
+	ocamlbuild src/generator/main.native src/orpc/orpc.cma src/orpc/orpc.cmxa src/lwt-equeue/lwt-equeue.cma src/lwt-equeue/lwt-equeue.cmxa
 
 install: all
-	ocamlfind install orpc META $(BFILES)
-	ocamlfind install lwt-equeue lwt-equeue/META $(LWT_BFILES)
-	cp main.native `ocamlfind printconf stdlib`/../../bin/orpc
+	ocamlfind install orpc src/orpc/META $(BFILES)
+	ocamlfind install lwt-equeue src/lwt-equeue/META $(LWT_BFILES)
+	cp _build/src/generator/main.native `ocamlfind printconf stdlib`/../../bin/orpc
 
 uninstall:
 	ocamlfind remove orpc
