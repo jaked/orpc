@@ -18,5 +18,9 @@
  * 02111-1307, USA
  *)
 
-val gen_mli : string -> Types.interface -> Camlp4.PreCast.Ast.sig_item
-val gen_ml : string -> Types.interface -> Camlp4.PreCast.Ast.str_item
+type t = string
+
+let create url = url
+
+let sync_call url call = failwith "unimplemented"
+let add_call url call pass_reply = failwith "unimplemented"

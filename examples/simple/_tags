@@ -1,2 +1,2 @@
-<*.ml*> : pkg_orpc, pkg_netplex
-<*.byte> : pkg_orpc, pkg_netplex
+<*.ml*> : pkg_orpc-onc, pkg_netplex
+<*.byte> : pkg_orpc-onc, pkg_netplex

@@ -185,10 +185,10 @@ let gen_ml name (typedefs, excs, funcs, mode) =
            <:expr< Array.map (fun x -> $gen_to t <:expr< x >>$) (Xdr.dest_xv_array $x$) >>
 
        | List (_, t) ->
-           <:expr< Orpc_onc.to_list (fun x -> $gen_to t <:expr< x >>$) $x$ >>
+           <:expr< Orpc.to_list (fun x -> $gen_to t <:expr< x >>$) $x$ >>
 
        | Option (_, t) ->
-           <:expr< Orpc_onc.to_option (fun x -> $gen_to t <:expr< x >>$) $x$ >>
+           <:expr< Orpc.to_option (fun x -> $gen_to t <:expr< x >>$) $x$ >>
 
        | Ref (_, t) -> gen_to t <:expr< ! $x$ >>
 
@@ -260,10 +260,10 @@ let gen_ml name (typedefs, excs, funcs, mode) =
            <:expr< Xdr.XV_array (Array.map (fun v -> $gen_of t <:expr< v >>$) $v$) >>
 
        | List (_, t) ->
-           <:expr< Orpc_onc.of_list (fun v -> $gen_of t <:expr< v >>$) $v$ >>
+           <:expr< Orpc.of_list (fun v -> $gen_of t <:expr< v >>$) $v$ >>
 
        | Option (_, t) ->
-           <:expr< Orpc_onc.of_option (fun v -> $gen_of t <:expr< v >>$) $v$ >>
+           <:expr< Orpc.of_option (fun v -> $gen_of t <:expr< v >>$) $v$ >>
 
        | Ref (_, t) ->
            <:expr< ref ($gen_to t v$) >>
@@ -326,7 +326,7 @@ let gen_ml name (typedefs, excs, funcs, mode) =
       | Int64 _ -> <:expr< Xdr.X_hyper >>
       | Float _ -> <:expr< Xdr.X_double >>
       | Bool _ -> <:expr< Xdr.x_bool >>
-      | Char _ -> <:expr< Orpc_onc.x_char >>
+      | Char _ -> <:expr< Orpc.x_char >>
       | String _ -> <:expr< Xdr.x_string_max >>
 
       | Tuple (_, parts) ->
@@ -355,7 +355,7 @@ let gen_ml name (typedefs, excs, funcs, mode) =
 
       | Array (_, t) -> <:expr< Xdr.x_array_max $gx t$ >>
 
-      | List (_, t) -> <:expr< Orpc_onc.x_list $gx t$ >>
+      | List (_, t) -> <:expr< Orpc.x_list $gx t$ >>
 
       | Option (_, t) -> <:expr< Xdr.x_optional $gx t$ >>
 

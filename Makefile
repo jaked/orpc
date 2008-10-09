@@ -1,6 +1,4 @@
-JSPKGLIST=
-
-PKGLIST=generator orpc lwt-equeue $(JSPKGLIST)
+PKGLIST=generator orpc orpc-onc lwt-equeue orpc-js-client # orpc-js-server
 
 all:
 	for pkg in $(PKGLIST); do \
@@ -21,3 +19,4 @@ clean:
 	for pkg in $(PKGLIST); do \
 		$(MAKE) -C src/$$pkg clean || exit; \
 	done
+	rm -rf stage/*

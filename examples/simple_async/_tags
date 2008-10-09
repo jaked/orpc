@@ -1,2 +1,2 @@
-<*.ml*> : pkg_orpc, pkg_netplex, pkg_equeue
-<*.byte> : pkg_orpc, pkg_netplex, pkg_equeue
+<*.ml*> : pkg_orpc-onc, pkg_netplex, pkg_equeue
+<*.byte> : pkg_orpc-onc, pkg_netplex, pkg_equeue

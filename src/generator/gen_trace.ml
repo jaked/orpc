@@ -63,7 +63,7 @@ let gen_module_type name (typedefs, _, funcs, mode) =
     val pp_exn'reply : Format.formatter -> exn -> unit;;
   >>
 
-let gen_trace_mli name (typedefs, excs, funcs, mode) =
+let gen_mli name (typedefs, excs, funcs, mode) =
 
   let modules =
     match mode with
@@ -90,7 +90,7 @@ let gen_trace_mli name (typedefs, excs, funcs, mode) =
     $sgSem_of_list modules$
   >>
 
-let gen_trace_ml name (typedefs, excs, funcs, mode) =
+let gen_ml name (typedefs, excs, funcs, mode) =
 
   let qual_id = G.qual_id_aux name mode in
 

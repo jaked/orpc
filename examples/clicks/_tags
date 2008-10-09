@@ -1,2 +1,3 @@
+<proto.ml> : pkg_lwt-js
 <clicks.ml> : pkg_ocamljs,pkg_lwt-js
 <clicks.js> : pkg_ocamljs,pkg_lwt-js

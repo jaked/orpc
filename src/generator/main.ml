@@ -28,11 +28,14 @@ let _ = let module M = Camlp4OCamlParser.Make(Syntax) in ()
 
 module Loc = Camlp4.PreCast.Loc
 
+let js = ref false
+
 let do_file fn =
   let print_error loc msg =
     Format.fprintf Format.std_formatter
       "%s at %a\n" msg Loc.print loc;
-    Format.print_flush () in
+    Format.print_flush ();
+    exit 1 in
   try
     let ch = open_in fn in
     let st = Stream.of_channel ch in
@@ -42,22 +45,31 @@ let do_file fn =
 
     let base = Filename.chop_extension fn in
     let mod_base = String.capitalize (Filename.basename base) in
-    List.iter
-      (fun (ext, gen_mli, gen_ml) ->
-        Printers.OCaml.print_interf ~output_file:(base ^ "_" ^ ext ^ ".mli") (gen_mli mod_base intf);
-        Printers.OCaml.print_implem ~output_file:(base ^ "_" ^ ext ^ ".ml") (gen_ml mod_base intf))
-      [
-        "aux", Gen_aux.gen_aux_mli, Gen_aux.gen_aux_ml;
-        "clnt", Gen_clnt.gen_clnt_mli, Gen_clnt.gen_clnt_ml;
-        "srv", Gen_srv.gen_srv_mli, Gen_srv.gen_srv_ml;
-        "trace", Gen_trace.gen_trace_mli, Gen_trace.gen_trace_ml;
-      ]
+
+    let modules =
+      if !js
+      then [
+        "js_aux", Gen_js_aux.gen_mli, Gen_js_aux.gen_ml;
+        "js_clnt", Gen_js_clnt.gen_mli, Gen_js_clnt.gen_ml;
+        "js_srv", Gen_js_srv.gen_mli, Gen_js_srv.gen_ml;
+        "trace", Gen_trace.gen_mli, Gen_trace.gen_ml;
+      ] else [
+        "aux", Gen_aux.gen_mli, Gen_aux.gen_ml;
+        "clnt", Gen_clnt.gen_mli, Gen_clnt.gen_ml;
+        "srv", Gen_srv.gen_mli, Gen_srv.gen_ml;
+        "trace", Gen_trace.gen_mli, Gen_trace.gen_ml;
+      ] in
+
+    ListLabels.iter modules ~f:(fun (ext, gen_mli, gen_ml) ->
+      Printers.OCaml.print_interf ~output_file:(base ^ "_" ^ ext ^ ".mli") (gen_mli mod_base intf);
+      Printers.OCaml.print_implem ~output_file:(base ^ "_" ^ ext ^ ".ml") (gen_ml mod_base intf))
   with
     | Loc.Exc_located (loc, Stream.Error msg) -> print_error loc msg
     | Loc.Exc_located (loc, e) -> print_error loc (Printexc.to_string e)
     | Error (loc, msg) -> print_error loc msg
 
 let args = Arg.align [
+  "--js", Arg.Set js, "generate client/server for Orpc-js";
 ]
 
 let _ = Arg.parse args do_file "usage:"

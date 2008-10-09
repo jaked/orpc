@@ -27,7 +27,7 @@ module G = Gen_common
 
 let _loc = Camlp4.PreCast.Loc.ghost
 
-let gen_clnt_mli name (typedefs, excs, funcs, mode) =
+let gen_mli name (typedefs, excs, funcs, mode) =
 
   let qual_id = G.qual_id_aux name mode in
 
@@ -89,7 +89,7 @@ let gen_clnt_mli name (typedefs, excs, funcs, mode) =
     $sgSem_of_list modules$
   >>
 
-let gen_clnt_ml name (typedefs, excs, funcs, mode) =
+let gen_ml name (typedefs, excs, funcs, mode) =
 
   let has_excs = excs <> [] in
   let of_arg = G.of_arg name in

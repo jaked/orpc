@@ -18,5 +18,16 @@
  * 02111-1307, USA
  *)
 
-val gen_mli : string -> Types.interface -> Camlp4.PreCast.Ast.sig_item
-val gen_ml : string -> Types.interface -> Camlp4.PreCast.Ast.str_item
+val x_char : Xdr.xdr_type_term
+val x_list : Xdr.xdr_type_term -> Xdr.xdr_type_term
+val to_list : (Xdr.xdr_value -> 'a) -> Xdr.xdr_value -> 'a list
+val of_list : ('a -> Xdr.xdr_value) -> 'a list -> Xdr.xdr_value
+val to_option : (Xdr.xdr_value -> 'a) -> Xdr.xdr_value -> 'a option
+val of_option : ('a -> Xdr.xdr_value) -> 'a option -> Xdr.xdr_value
+
+val to_orpc_result : (Xdr.xdr_value -> 'a) -> (Xdr.xdr_value -> exn) -> Xdr.xdr_value -> ('a, exn) Orpc.orpc_result
+val of_orpc_result : ('a -> Xdr.xdr_value) -> (exn -> Xdr.xdr_value) -> ('a, exn) Orpc.orpc_result -> Xdr.xdr_value
+val xdr_orpc_result : Xdr.xdr_type_term -> Xdr.xdr_type_term -> Xdr.xdr_type_term;;
+
+(* a place to stash the session on asynchronous calls. not thread safe, obviously. *)
+val session : Rpc_server.session option ref

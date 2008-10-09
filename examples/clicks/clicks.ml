@@ -28,7 +28,9 @@ let window = (Ocamljs.var "window" : window)
 let document = (Ocamljs.var "document" : document)
 let console = (Ocamljs.var "console" : console)
 
-(* module Server = Proto_clnt(struct val url = "/clicks" end) *)
+module Server = Proto_js_clnt(struct let url = "/clicks" end)
+
+(*
 module Server =
 struct
   let n = ref 0
@@ -36,6 +38,7 @@ struct
   let clicks () = Lwt.return (!n)
   let click () = incr n; Lwt.return (!n)
 end
+*)
 
 let (>>=) = Lwt.(>>=)
 

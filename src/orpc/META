@@ -1,6 +1,6 @@
 name="Orpc"
 version="0.1"
-description="OCaml RPC generator"
-requires="rpc"
+description="Orpc support"
 archive(byte) = "orpc.cma"
 archive(native) = "orpc.cmxa"
+archive(js) = "orpc.cmjsa"

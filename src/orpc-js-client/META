@@ -1,0 +1,4 @@
+name="Orpc-js-client"
+version="0.1"
+description="Orpc-js support for client"
+archive(js) = "orpc-js-client.cmjsa"
