@@ -124,6 +124,38 @@ let gen_ml name (typedefs, excs, funcs, mode) =
         }
       >> in
 
+  let lwt_func (_, id, args, _) =
+    <:expr<
+      Rpc_server.Async {
+        Rpc_server.async_name = $`str:id$;
+        Rpc_server.async_invoke = fun s x0 ->
+          Orpc_onc.session := Some s;
+          Lwt.ignore_result
+            (Lwt.try_bind
+                (fun () ->
+                  $let (ps, _) = G.vars args in
+                   <:expr<
+                     let ( $paCom_of_list ps$ ) = $id:to_arg id$ x0 in
+                     $G.args_apps <:expr< A.$lid:id$ >> args$
+                   >>$)
+                (fun v ->
+                  Rpc_server.reply s
+                    ($id:of_res id$
+                        $if has_excs
+                         then <:expr< Orpc.Orpc_success v >>
+                         else <:expr< v >>$);
+                  Lwt.return ())
+                (fun e ->
+                  $if has_excs
+                   then
+                     <:expr<
+                       Rpc_server.reply s ($id:of_res id$ (Orpc.Orpc_failure e));
+                       Lwt.return ()
+                     >>
+                   else <:expr< raise e >>$))
+        }
+      >> in
+
   let modules =
     match mode with
       | Simple -> []
@@ -138,12 +170,18 @@ let gen_ml name (typedefs, excs, funcs, mode) =
                       ?program_number
                       ?version_number
                       srv =
-                    $List.fold_left
-                      (fun e (_, id, args, _) ->
-                        let body =
-                          match kind with
-                            | Sync -> <:expr< A.$lid:id$ >>
-                            | Async ->
+                    $match kind with
+                      | Sync ->
+                          List.fold_left
+                            (fun e (_, id, args, _) ->
+                              let body = <:expr< A.$lid:id$ >> in
+                              ExApp(_loc, e, ExLab (_loc, "proc_" ^ id, body)))
+                            <:expr< bind ?program_number ?version_number >>
+                            funcs
+                      | Async ->
+                          List.fold_left
+                            (fun e (_, id, args, _) ->
+                              let body =
                                 <:expr<
                                   fun s ->
                                     $G.args_funs args
@@ -153,29 +191,16 @@ let gen_ml name (typedefs, excs, funcs, mode) =
                                           $G.args_apps <:expr< A.$lid:id$ >> args$
                                             (fun r -> pass_reply (r ()))
                                       >>$
-                                >>
-                            | Lwt ->
-                                <:expr<
-                                  fun s ->
-                                    $G.args_funs args
-                                      <:expr<
-                                        fun pass_reply ->
-                                          Orpc_onc.session := Some s;
-                                          Lwt.ignore_result
-                                            (Lwt.try_bind
-                                                (fun () ->
-                                                  $G.args_apps <:expr< A.$lid:id$ >> args$)
-                                                (fun r -> Lwt.return (pass_reply r))
-                                                (fun e -> raise e))
-                                      >>$
                                 >> in
-                        (* <:expr< $e$ ~ $lid:"proc" ^ id$ : A.$lid:id$ >> does not work? *)
-                        ExApp(_loc, e, ExLab (_loc, "proc_" ^ id, body)))
-                      (match kind with
-                        | Sync -> <:expr< bind ?program_number ?version_number >>
-                        | Async
-                        | Lwt -> <:expr< bind_async ?program_number ?version_number >>)
-                      funcs$
+                              ExApp(_loc, e, ExLab (_loc, "proc_" ^ id, body)))
+                            <:expr< bind_async ?program_number ?version_number >>
+                            funcs
+                      | Lwt ->
+                          <:expr<
+                            Rpc_server.bind
+                              ?program_number ?version_number $id:G.program name$
+                              $G.conses (List.map lwt_func funcs)$
+                          >>$
                     srv
                 end
               >>)

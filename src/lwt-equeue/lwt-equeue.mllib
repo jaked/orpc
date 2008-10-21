@@ -1,6 +1,9 @@
 Lwt
+Lwt_chan
+Lwt_condition
 Lwt_mutex
 Lwt_pool
+Lwt_queue
 Lwt_timeout
 Lwt_unix
 Lwt_util
