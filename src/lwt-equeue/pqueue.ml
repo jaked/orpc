@@ -38,6 +38,7 @@ module type S =
     val find_min: t -> elt
     val remove_min: t -> t
     val size: t -> int
+    val fold: ('a -> elt -> 'a) -> 'a -> t -> 'a
   end
 
 module Make(Ord: OrderedType) : (S with type elt = Ord.t) =
@@ -101,4 +102,7 @@ module Make(Ord: OrderedType) : (S with type elt = Ord.t) =
     let rec size l =
       let rec sizetree (Node (_,_,tl)) = 1 + size tl in
       List.fold_left (fun s t -> s + sizetree t) 0 l
+
+    let rec fold f b l =
+      List.fold_left (fun b (Node (x, _, c)) -> fold f (f b x) c) b l
   end

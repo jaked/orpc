@@ -111,6 +111,7 @@ let gen_ml name (typedefs, excs, funcs, mode) =
       Rpc_server.Async {
         Rpc_server.async_name = $`str:id$;
         Rpc_server.async_invoke = fun s x0 ->
+          Orpc_onc.session := Some s;
           $(fun body body2 ->
               if has_excs
               then <:expr< Orpc.pack_orpc_result_async (fun k -> $body$ k) $body2$ >>

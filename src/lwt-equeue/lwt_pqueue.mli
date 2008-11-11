@@ -18,10 +18,23 @@
  * 02111-1307, USA
  *)
 
-type 'a t
-
 exception Timeout
 
-val create : unit -> 'a t
-val add : 'a -> 'a t -> unit Lwt.t
-val take : ?timeout:float -> 'a t -> 'a Lwt.t
+module type OrderedType =
+sig
+  type t
+  val compare: t -> t -> int
+end
+
+module type S =
+sig
+  type elt
+  type t
+  val create : unit -> t
+  val add : elt -> t -> unit Lwt.t
+  val take : ?timeout:float -> t -> elt Lwt.t
+  val size : t -> int
+  val fold : ('a -> elt -> 'a) -> 'a -> t -> 'a
+end
+
+module Make(Ord: OrderedType) : S with type elt = Ord.t

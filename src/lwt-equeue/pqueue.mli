@@ -38,6 +38,7 @@ module type S =
     val find_min: t -> elt
     val remove_min: t -> t
     val size: t -> int
+    val fold: ('a -> elt -> 'a) -> 'a -> t -> 'a
   end
 
 module Make(Ord: OrderedType) : S with type elt = Ord.t

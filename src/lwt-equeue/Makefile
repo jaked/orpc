@@ -5,6 +5,7 @@ lwt_chan.mli lwt_chan.cmi \
 lwt_condition.mli lwt_condition.cmi \
 lwt_mutex.mli lwt_mutex.cmi \
 lwt_pool.mli lwt_pool.cmi \
+lwt_pqueue.mli lwt_pqueue.cmi \
 lwt_queue.mli lwt_queue.cmi \
 lwt_timeout.mli lwt_timeout.cmi \
 lwt_unix.mli lwt_unix.cmi \
