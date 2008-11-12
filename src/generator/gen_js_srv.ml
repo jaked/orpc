@@ -37,22 +37,18 @@ let gen_mli name (typedefs, excs, funcs, mode) =
       | Modules kinds ->
           List.map
             (fun kind ->
-              let mt = G.string_of_kind kind in
-              <:sig_item<
-                module $uid:mt$ : functor (A : $uid:name$.$uid:mt$) ->
-                sig
-                  val bind :
-                    ?program_number:Rtypes.uint4 ->
-                    ?version_number:Rtypes.uint4 ->
-                    Rpc_server.t -> unit
-                end
-              >>)
+              if kind <> Sync then <:sig_item< >>
+              else
+                <:sig_item<
+                  module Sync : functor (A : $uid:name$.Sync) ->
+                  sig
+                    val handler : Netcgi_types.cgi_activation -> unit
+                  end
+                >>)
             kinds in
 
   <:sig_item<
-    val bind :
-      ?program_number:Rtypes.uint4 ->
-      ?version_number:Rtypes.uint4 ->
+    val handler :
       $List.fold_right
         (fun (_, id, args, res) t ->
           <:ctyp<
@@ -61,21 +57,7 @@ let gen_mli name (typedefs, excs, funcs, mode) =
             -> $t$
           >>)
         funcs
-        <:ctyp< Rpc_server.t -> unit >>$ ;;
-
-    val bind_async :
-      ?program_number:Rtypes.uint4 ->
-      ?version_number:Rtypes.uint4 ->
-      $List.fold_right
-        (fun (_, id, args, res) t ->
-          <:ctyp<
-            $lid:"proc_" ^ id$ : (Rpc_server.session ->
-              $G.args_arrows qual_id args
-                <:ctyp< ($G.gen_type qual_id res$ -> unit) -> unit >>$)
-            -> $t$
-          >>)
-        funcs
-        <:ctyp< Rpc_server.t -> unit >>$ ;;
+        <:ctyp< Netcgi_types.cgi_activation -> unit >>$ ;;
 
     $sgSem_of_list modules$
   >>
@@ -85,15 +67,15 @@ let gen_mli name (typedefs, excs, funcs, mode) =
 let gen_ml name (typedefs, excs, funcs, mode) =
 
   let has_excs = excs <> [] in
-  let to_arg = G.to_arg name in
-  let of_res = G.of_res name in
+
+  let aux_id id = <:ident< $uid:name ^ "_js_aux"$ . $lid:id$ >> in
+  let to_arg id = aux_id ("to_" ^ id ^ "'arg") in
 
   let sync_func (_, id, args, _) =
     <:expr<
-      Rpc_server.Sync {
-        Rpc_server.sync_name = $`str:id$;
-        Rpc_server.sync_proc = fun x0 ->
-          $id:of_res id$
+      ($`str:id$,
+      fun x0 ->
+        Obj.repr
           $(fun body ->
               if has_excs
               then <:expr< Orpc.pack_orpc_result (fun () -> $body$) >>
@@ -102,27 +84,8 @@ let gen_ml name (typedefs, excs, funcs, mode) =
              <:expr<
                let ( $paCom_of_list ps$ ) = $id:to_arg id$ x0 in
                $G.args_apps <:expr< $lid:"proc_" ^ id$ >> args$
-             >>)$
-      }
+             >>)$)
     >> in
-
-  let async_func (_, id, args, _) =
-    <:expr<
-      Rpc_server.Async {
-        Rpc_server.async_name = $`str:id$;
-        Rpc_server.async_invoke = fun s x0 ->
-          $(fun body body2 ->
-              if has_excs
-              then <:expr< Orpc.pack_orpc_result_async (fun k -> $body$ k) $body2$ >>
-              else <:expr< $body$ $body2$ >>)
-            (let (ps, _) = G.vars args in
-             <:expr<
-               let ( $paCom_of_list ps$ ) = $id:to_arg id$ x0 in
-               $G.args_apps <:expr< $lid:"proc_" ^ id$ s >> args$
-             >>)
-            <:expr< (fun y -> Rpc_server.reply s ($id:of_res id$ y)) >>$
-        }
-      >> in
 
   let modules =
     match mode with
@@ -130,85 +93,28 @@ let gen_ml name (typedefs, excs, funcs, mode) =
       | Modules kinds ->
           List.map
             (fun kind ->
-              let mt = G.string_of_kind kind in
-              <:str_item<
-                module $uid:mt$ (A : $uid:name$.$uid:mt$) =
-                struct
-                  let bind
-                      ?program_number
-                      ?version_number
-                      srv =
-                    $List.fold_left
-                      (fun e (_, id, args, _) ->
-                        let body =
-                          match kind with
-                            | Sync -> <:expr< A.$lid:id$ >>
-                            | Async ->
-                                <:expr<
-                                  fun s ->
-                                    $G.args_funs args
-                                      <:expr<
-                                        fun pass_reply ->
-                                          Orpc_onc.session := Some s;
-                                          $G.args_apps <:expr< A.$lid:id$ >> args$
-                                            (fun r -> pass_reply (r ()))
-                                      >>$
-                                >>
-                            | Lwt ->
-                                <:expr<
-                                  fun s ->
-                                    $G.args_funs args
-                                      <:expr<
-                                        fun pass_reply ->
-                                          Orpc_onc.session := Some s;
-                                          Lwt.ignore_result
-                                            (Lwt.try_bind
-                                                (fun () ->
-                                                  $G.args_apps <:expr< A.$lid:id$ >> args$)
-                                                (fun r -> Lwt.return (pass_reply r))
-                                                (fun e -> raise e))
-                                      >>$
-                                >> in
-                        (* <:expr< $e$ ~ $lid:"proc" ^ id$ : A.$lid:id$ >> does not work? *)
-                        ExApp(_loc, e, ExLab (_loc, "proc_" ^ id, body)))
-                      (match kind with
-                        | Sync -> <:expr< bind ?program_number ?version_number >>
-                        | Async
-                        | Lwt -> <:expr< bind_async ?program_number ?version_number >>)
-                      funcs$
-                    srv
-                end
-              >>)
+              if kind <> Sync then <:str_item< >>
+              else
+                <:str_item<
+                  module Sync (A : $uid:name$.Sync) =
+                  struct
+                    let handler =
+                      $List.fold_left
+                        (fun e (_, id, args, _) ->
+                          let body = <:expr< A.$lid:id$ >> in
+                          ExApp(_loc, e, ExLab (_loc, "proc_" ^ id, body)))
+                        <:expr< handler >>
+                        funcs$
+                  end
+                >>)
             kinds in
 
   <:str_item<
-    let bind
-        ?program_number
-        ?version_number =
+    let handler =
       $List.fold_right
         (fun (_, id, _, _) e -> <:expr< fun ~ $lid:"proc_" ^ id$ -> $e$ >>)
         funcs
-        <:expr<
-          fun srv ->
-            Rpc_server.bind
-              ?program_number ?version_number $id:G.program name$
-              $G.conses (List.map sync_func funcs)$
-              srv
-        >>$ ;;
-
-    let bind_async
-        ?program_number
-        ?version_number =
-      $List.fold_right
-        (fun (_, id, _, _) e -> <:expr< fun ~ $lid:"proc_" ^ id$ -> $e$ >>)
-        funcs
-        <:expr<
-          fun srv ->
-            Rpc_server.bind
-              ?program_number ?version_number $id:G.program name$
-              $G.conses (List.map async_func funcs)$
-              srv
-        >>$ ;;
+        <:expr< Orpc_js_server.handler $G.conses (List.map sync_func funcs)$ >>$ ;;
 
     $stSem_of_list modules$
   >>

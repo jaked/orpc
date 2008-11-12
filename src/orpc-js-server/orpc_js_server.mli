@@ -18,9 +18,7 @@
  * 02111-1307, USA
  *)
 
-type t
+val to_list : (Obj.t -> 'a) -> Obj.t -> 'a list
+val to_option : (Obj.t -> 'a) -> Obj.t -> 'a option
 
-val create : string -> t
-
-val sync_call : t -> string -> Obj.t -> Obj.t
-val add_call : t -> string -> Obj.t -> ((unit -> Obj.t) -> unit) -> unit
+val handler : (string * (Obj.t -> Obj.t)) list -> Netcgi_types.cgi_activation -> unit

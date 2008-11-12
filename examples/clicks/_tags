@@ -1,3 +1,8 @@
 <proto.ml> : pkg_lwt-js
-<clicks.ml> : pkg_ocamljs,pkg_lwt-js
-<clicks.js> : pkg_ocamljs,pkg_lwt-js
+<proto_js_clnt.ml*> : pkg_lwt-js,pkg_orpc-js-client
+<clicks.ml> : pkg_lwt-js,pkg_orpc-js-client,pkg_dom
+<clicks.js> : pkg_lwt-js,pkg_orpc-js-client,pkg_dom
+
+<proto_js_srv.ml*> : pkg_nethttpd,pkg_orpc-js-server
+<server.ml> : pkg_nethttpd,pkg_netplex,pkg_orpc-js-server
+<server.byte> : pkg_nethttpd,pkg_netplex,pkg_orpc-js-server

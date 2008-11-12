@@ -18,9 +18,72 @@
  * 02111-1307, USA
  *)
 
+let serialize o =
+  let a = Javascript.new_Array () in
+  let push o = ignore (a#push o) in
+  let push_string s = ignore (a#push (Obj.repr s)) in
+  let rec loop o = (* XXX maybe keep an explicit stack here? *)
+    match Javascript.typeof o with
+      | "string" ->
+          push_string "\"";
+          push o; (* XXX need to escape here. also need to figure out Unicode *)
+          push_string "\""
+      | "number" -> push o
+      | "object" -> (* XXX check for Array *)
+          push_string "[";
+          let s = Obj.size o - 1 in
+          for i = 0 to s do
+            loop (Obj.field o i);
+            if i <> s then push_string ","
+          done;
+          push_string "]"
+      | _ -> raise (Failure "unserializeable heap object") in
+  loop o;
+  a#join ""
+
+(* this is in dom package but don't want dependency *)
+class type xMLHttpRequest =
+object
+  method _set_onreadystatechange : (unit -> unit) Ocamljs.jsfun -> unit
+  method _get_readyState : int
+  (* method _get_responseXML : Dom.document ? *)
+  method _get_responseText : string
+  method _get_status : int
+  method _get_statusText : string
+  method abort : unit
+  method getAllResponseHeaders : string
+  method getResponseHeader : string -> string
+  method open_ : string -> string -> bool -> unit
+  method send : string -> unit
+  method setRequestHeader : string -> string -> unit
+end
+
+external new_XMLHttpRequest : unit -> xMLHttpRequest = "$new" "XMLHttpRequest"
+
 type t = string
 
 let create url = url
 
-let sync_call url call = failwith "unimplemented"
-let add_call url call pass_reply = failwith "unimplemented"
+let sync_call url proc arg =
+  let xhr = new_XMLHttpRequest () in
+  xhr#open_ "POST" url false;
+  xhr#setRequestHeader "Content-Type" "text/plain";
+  xhr#send (serialize (Obj.repr (proc, arg)));
+  if xhr#_get_status = 200
+  then Javascript.eval xhr#_get_responseText
+  else raise (Failure xhr#_get_statusText)
+
+let add_call url proc arg pass_reply =
+  let xhr = new_XMLHttpRequest () in
+  xhr#_set_onreadystatechange (Ocamljs.jsfun (fun () ->
+    match xhr#_get_readyState with
+      | 4 ->
+          let r =
+            if xhr#_get_status = 200
+            then let o = Javascript.eval xhr#_get_responseText in (fun () -> o)
+            else let s = xhr#_get_statusText in (fun () -> raise (Failure s)) in
+          pass_reply r
+      | _ -> ()));
+  xhr#open_ "POST" url true;
+  xhr#setRequestHeader "Content-Type" "text/plain";
+  xhr#send (serialize (Obj.repr (proc, arg)))

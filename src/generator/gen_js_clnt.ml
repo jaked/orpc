@@ -71,35 +71,42 @@ let gen_ml name (typedefs, excs, funcs, mode) =
   let has_excs = excs <> [] in
 
   let sync_func (_, id, args, res) =
-    <:str_item<
-      let $lid:id$ = fun client ->
-        $G.args_funs args
-          ((fun body ->
-              if has_excs
-              then <:expr< Orpc.unpack_orpc_result ($body$ : ('a, exn) orpc_result) >>
-              else body)
-           <:expr<
-              Orpc_js_client.sync_call client
-                $let (_, es) = G.vars args in
-                 G.apps <:expr< $uid:String.capitalize id$ >> es$
-           >>)$
-    >> in
+    (fun body ->
+      <:str_item<
+        let $lid:id$ = fun client ->
+          $match args with
+            | [] -> assert false
+            | [a] -> G.args_funs args body
+            | _ ->
+                let (_, es) = G.vars args in
+                G.args_funs args
+                  <:expr< let x0 = ($exCom_of_list es$) in $body$ >>$
+      >>)
+      ((fun body2 ->
+          if has_excs
+          then <:expr< Orpc.unpack_orpc_result $body2$ >>
+          else body2)
+        <:expr< Obj.obj (Orpc_js_client.sync_call client $`str:id$ (Obj.repr x0)) >>) in
 
   let async_func (_, id, args, res) =
-    <:str_item<
-      let $lid:id ^ "'async"$ = fun client ->
-        $G.args_funs args
-          <:expr<
-            fun pass_reply ->
-              Orpc_js_client.add_call client
-                $let (_, es) = G.vars args in
-                 G.apps <:expr< $uid:String.capitalize id$ >> es$
-                (fun g -> pass_reply (fun () ->
-                  $if has_excs
-                   then <:expr< Orpc.unpack_orpc_result (g () : ('a, exn) orpc_result) >>
-                   else <:expr< g () >>$))
-          >>$
-    >> in
+    (fun body ->
+      <:str_item<
+        let $lid:id ^ "'async"$ = fun client ->
+          $match args with
+            | [] -> assert false
+            | [a] -> G.args_funs args <:expr< fun pass_reply -> $body$ >>
+            | _ ->
+                let (_, es) = G.vars args in
+                G.args_funs args
+                  <:expr< fun pass_reply -> let x0 = ($exCom_of_list es$) in $body$ >>$
+      >>)
+      <:expr<
+        Orpc_js_client.add_call client $`str:id$ (Obj.repr x0)
+          (fun g -> pass_reply (fun () ->
+            $if has_excs
+            then <:expr< Orpc.unpack_orpc_result (Obj.obj (g ())) >>
+            else <:expr< Obj.obj (g ()) >>$))
+      >> in
 
   let modules =
     match mode with

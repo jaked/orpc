@@ -266,7 +266,7 @@ let gen_ml name (typedefs, excs, funcs, mode) =
            <:expr< Orpc_onc.of_option (fun v -> $gen_of t <:expr< v >>$) $v$ >>
 
        | Ref (_, t) ->
-           <:expr< ref ($gen_to t v$) >>
+           <:expr< ref ($gen_of t v$) >>
 
        | Apply (_, mdl, id, args) ->
            <:expr<

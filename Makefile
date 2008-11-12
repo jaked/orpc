@@ -1,4 +1,4 @@
-PKGLIST=generator orpc orpc-onc lwt-equeue orpc-js-client # orpc-js-server
+PKGLIST=generator orpc orpc-onc lwt-equeue orpc-js-client orpc-js-server
 
 all:
 	for pkg in $(PKGLIST); do \

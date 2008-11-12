@@ -1,5 +1,5 @@
 all: myocamlbuild.ml
-	ocamlbuild clicks.js
+	ocamlbuild clicks.js server.byte
 
 clean:
 	ocamlbuild -clean
