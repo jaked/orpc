@@ -57,8 +57,8 @@ let gen_mli name (typedefs, excs, funcs, mode) =
             <:sig_item<
               val $lid:G.to_ id$ :
                 $G.arrows
-                  (List.map (fun v -> <:ctyp< Obj.t -> '$lid:v$ >>) vars)
-                  <:ctyp< Obj.t -> $appd$ >>$
+                  (List.map (fun v -> <:ctyp< Orpc_js_server.obj -> '$lid:v$ >>) vars)
+                  <:ctyp< Orpc_js_server.obj -> $appd$ >>$
           >>)
           ds) in
 
@@ -76,7 +76,7 @@ let gen_mli name (typedefs, excs, funcs, mode) =
     let items aid arg =
       let t = G.gen_type qual_id arg in
       <:sig_item<
-        val $lid:G.to_ aid$ : Obj.t -> $t$
+        val $lid:G.to_ aid$ : Orpc_js_server.obj -> $t$
       >> in
     <:sig_item<
       $items (s_arg id) arg$
@@ -94,7 +94,7 @@ let gen_mli name (typedefs, excs, funcs, mode) =
     $if has_excs
      then
        <:sig_item<
-         val to_exn : Obj.t -> exn
+         val to_exn : Orpc_js_server.obj -> exn
        >>
      else <:sig_item< >>$ ;;
     $sgSem_of_list (List.map gen_func funcs)$ ;;
@@ -108,127 +108,69 @@ let gen_ml name (typedefs, excs, funcs, mode) =
   let rec gen_to t x =
     match t with
       | Var (_, id) -> <:expr< $lid:G.to_p id$ $x$ >>
-      | Unit _ ->
-          <:expr<
-            if Obj.is_int $x$ && Obj.obj $x$ = 0
-            then ()
-            else raise (Invalid_argument "unit")
-          >>
-      | Int _ ->
-          <:expr<
-            if Obj.is_int $x$
-            then Obj.obj $x$
-            else raise (Invalid_argument "int")
-          >>
-      | Int32 _ ->
-          <:expr<
-            if Obj.is_int $x$
-            then Int32.of_int (Obj.obj $x$)
-            else if Obj.tag $x$ = Obj.double_tag
-            then Int32.of_float (Obj.obj $x$)
-            else raise (Invalid_argument "int32")
-          >>
-      | Int64 _ ->
-          <:expr<
-            if Obj.is_int $x$
-            then Int64.of_int (Obj.obj $x$)
-            else if Obj.tag $x$ = Obj.double_tag
-            then Int64.of_float (Obj.obj $x$)
-            else raise (Invalid_argument "int64")
-          >>
-      | Float _ ->
-          <:expr<
-            if Obj.is_int $x$
-            then float_of_int (Obj.obj $x$)
-            else if Obj.tag $x$ = Obj.double_tag
-            then Obj.obj $x$
-            else raise (Invalid_argument "float")
-          >>
-      | Bool _ ->
-          <:expr<
-            if Obj.is_int $x$ && (Obj.obj $x$ : int) = 0
-            then match Obj.obj $x$ with
-              | 0 -> false
-              | 1 -> true
-              | _ -> raise (Invalid_argument "unit")
-            else raise (Invalid_argument "unit")
-          >>
-      | Char _ ->
-          <:expr<
-            if Obj.is_int $x$
-            then char_of_int (Obj.obj $x$)
-            else raise (Invalid_argument "char")
-          >>
-      | String _ ->
-          <:expr<
-            if not (Obj.is_int $x$) && Obj.tag $x$ = Obj.string_tag
-            then Obj.obj $x$
-            else raise (Invalid_argument "string")
-          >>
-
+      | Unit _ -> <:expr< Orpc_js_server.to_unit $x$ >>
+      | Int _ -> <:expr< Orpc_js_server.to_int $x$ >>
+      | Int32 _ -> <:expr< Orpc_js_server.to_int32 $x$ >>
+      | Int64 _ -> <:expr< Orpc_js_server.to_int64 $x$ >>
+      | Float _ -> <:expr< Orpc_js_server.to_float $x$ >>
+      | Bool _ -> <:expr< Orpc_js_server.to_bool $x$ >>
+      | Char _ -> <:expr< Orpc_js_server.to_char $x$ >>
+      | String _ -> <:expr< Orpc_js_server.to_string $x$ >>
       | Tuple (_, parts) ->
+          let (pps, pes) = G.vars parts in
           <:expr<
-            if Obj.is_int $x$ || Obj.tag $x$ <> 0 || Obj.size $x$ <> $`int:List.length parts$
-            then raise (Invalid_argument "tuple")
-            else ( $exCom_of_list (List.mapi (fun p i -> gen_to p <:expr< Obj.field $x$ $`int:i$ >>) parts)$ )
+            match $x$ with
+              | Orpc_js_server.Oblock (0, [| $paSem_of_list pps$ |]) -> ( $exCom_of_list (List.map2 gen_to parts pes)$ )
+              | _ -> raise (Invalid_argument "tuple")
           >>
 
       | Record (_, fields) ->
+          let (fps, fes) = G.vars fields in
           let rb f e = <:rec_binding< $id:qual_id f.f_id$ = $gen_to f.f_typ e$ >> in
           <:expr<
-            if Obj.is_int $x$ || Obj.tag $x$ <> 0 || Obj.size $x$ <> $`int:List.length fields$
-            then raise (Invalid_argument "record")
-            else $ExRec(_loc, rbSem_of_list (List.mapi (fun f i -> rb f <:expr< Obj.field $x$ $`int:i$>>) fields), <:expr< >>)$
+            match $x$ with
+              | Orpc_js_server.Oblock (0, [| $paSem_of_list fps$ |]) ->
+                  $ExRec(_loc, rbSem_of_list (List.map2 rb fields fes), <:expr< >>)$
+              | _ -> raise (Invalid_argument "record")
           >>
 
        | Variant (_, arms) ->
            let mc (id, ts) i =
              match ts with
-               | [] -> <:match_case< $`int:i$ -> $id:qual_id id$ >>
+               | [] ->
+                   <:match_case< Orpc_js_server.Oint $`int:i$ -> $id:qual_id id$ >>
                | [t] ->
-                   <:match_case<
-                     $`int:i$ ->
-                       if Obj.size $x$ <> 1
-                       then raise (Invalid_argument "variant")
-                       else $id:qual_id id$ $gen_to t <:expr< Obj.field $x$ 0 >>$
-                   >>
+                   <:match_case< Orpc_js_server.Oblock ($`int:i$, [| x |]) -> $id:qual_id id$ $gen_to t <:expr< x >>$ >>
                | _ ->
+                   let (pps, pes) = G.vars ts in
                    <:match_case<
-                     $`int:i$ ->
-                       if Obj.size $x$ <> $`int:List.length ts$
-                       then raise (Invalid_argument "variant")
-                       else
-                         $List.fold_left
-                           (fun ps p -> <:expr< $ps$ $p$ >>)
-                           <:expr< $id:qual_id id$ >>
-                           (List.mapi (fun t i -> gen_to t <:expr< Obj.field $x$ $`int:i$ >>) ts)$
+                     Orpc_js_server.Oblock ($`int:i$, [| $paSem_of_list pps$ |]) ->
+                       $List.fold_left
+                         (fun ps p -> <:expr< $ps$ $p$ >>)
+                         <:expr< $id:qual_id id$ >>
+                         (List.map2 gen_to ts pes)$
                    >> in
            <:expr<
-             if Obj.is_int $x$
-             then
-               $ExMat (_loc,
-                      <:expr< Obj.obj $x$ >>,
-                      mcOr_of_list
-                        (List.mapi
-                            mc
-                            (List.filter (fun (_, ts) -> ts = []) arms) @
-                            [ <:match_case< _ -> raise (Invalid_argument "variant") >> ]))$
-             else
-               $ExMat (_loc,
-                      <:expr< Obj.tag $x$ >>,
-                      mcOr_of_list
-                        (List.mapi
-                            mc
-                            (List.filter (fun (_, ts) -> ts <> []) arms) @
-                            [ <:match_case< _ -> raise (Invalid_argument "variant") >> ]))$
+             match $x$ with
+               | Orpc_js_server.Oint _ ->
+                   $ExMat (_loc, x,
+                          mcOr_of_list
+                            (List.mapi
+                                mc
+                                (List.filter (fun (_, ts) -> ts = []) arms) @
+                                [ <:match_case< _ -> raise (Invalid_argument "variant") >> ]))$
+               | Orpc_js_server.Oblock _ ->
+                   $ExMat (_loc, x,
+                          mcOr_of_list
+                            (List.mapi
+                                mc
+                                (List.filter (fun (_, ts) -> ts <> []) arms) @
+                                [ <:match_case< _ -> raise (Invalid_argument "variant") >> ]))$
+               | _ -> raise (Invalid_argument "variant")
            >>
 
        | Array (_, t) ->
-           <:expr<
-             if Obj.is_int $x$ || Obj.tag $x$ <> 0
-             then raise (Invalid_argument "array")
-             else Array.map (fun x -> $gen_to t <:expr< x >>$) (Obj.obj $x$)
-           >>
+           <:expr< Array.map (fun x -> $gen_to t <:expr< x >>$) $x$ >>
 
        | List (_, t) ->
            <:expr< Orpc_js_server.to_list (fun x -> $gen_to t <:expr< x >>$) $x$ >>

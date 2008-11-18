@@ -18,7 +18,22 @@
  * 02111-1307, USA
  *)
 
-val to_list : (Obj.t -> 'a) -> Obj.t -> 'a list
-val to_option : (Obj.t -> 'a) -> Obj.t -> 'a option
+type obj =
+    | Oint of int
+    | Ofloat of float
+    | Ostring of string
+    | Oblock of int * obj array
 
-val handler : (string * (Obj.t -> Obj.t)) list -> Netcgi_types.cgi_activation -> unit
+val to_unit : obj -> unit
+val to_int : obj -> int
+val to_int32 : obj -> Int32.t
+val to_int64 : obj -> Int64.t
+val to_float : obj -> float
+val to_bool : obj -> bool
+val to_char : obj -> char
+val to_string : obj -> string
+
+val to_list : (obj -> 'a) -> obj -> 'a list
+val to_option : (obj -> 'a) -> obj -> 'a option
+
+val handler : (string * (obj -> Obj.t)) list -> Netcgi_types.cgi_activation -> unit

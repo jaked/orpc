@@ -18,29 +18,76 @@
  * 02111-1307, USA
  *)
 
+type obj =
+    | Oint of int
+    | Ofloat of float
+    | Ostring of string
+    | Oblock of int * obj array
+
+let to_unit = function
+  | Oint 0 -> ()
+  | _ -> raise (Invalid_argument "unit")
+
+let to_int = function
+  | Oint i -> i
+  | _ -> raise (Invalid_argument "int")
+
+let to_int32 = function
+  | Oint i -> Int32.of_int i
+  | Ofloat f -> Int32.of_float f
+  | _ -> raise (Invalid_argument "int32")
+
+let to_int64 = function
+  | Oint i -> Int64.of_int i
+  | Ofloat f -> Int64.of_float f
+  | _ -> raise (Invalid_argument "int64")
+
+let to_float = function
+  | Oint i -> float_of_int i
+  | Ofloat f -> f
+  | _ -> raise (Invalid_argument "float")
+
+let to_bool = function
+  | Oint 0 -> false
+  | Oint 1 -> true
+  | _ -> raise (Invalid_argument "bool")
+
+let to_char = function
+  | Oint c -> char_of_int c
+  | _ -> raise (Invalid_argument "char")
+
+let to_string = function
+  | Ostring s -> s
+  | _ -> raise (Invalid_argument "string")
+
 let to_list to'a x =
-  let rec loop x =
-    if Obj.is_int x && Obj.obj x = 0 then []
-    else if Obj.tag x = 0 && Obj.size x = 2 then to'a (Obj.field x 0) :: loop (Obj.field x 1)
-    else raise (Invalid_argument "list") in
+  let rec loop = function
+    | Oint 0 -> []
+    | Oblock (0, [| x0; x1 |]) -> to'a x0 :: loop x1
+    | _ -> raise (Invalid_argument "list") in
   loop x
 
-let to_option to'a x =
-  if Obj.is_int x && Obj.obj x = 0 then None
-  else if Obj.tag x = 0 && Obj.size x = 1 then Some (to'a (Obj.field x 0))
-  else raise (Invalid_argument "option")
+let to_option to'a = function
+  | Oint 0 -> None
+  | Oblock (0, [| x0 |]) -> Some (to'a x0)
+  | _ -> raise (Invalid_argument "option")
 
 (*
-  XXX
+  in essence we are transferring the heap representation back and
+  forth, but since it is not identical on client and server we do
+  things asymmetrically:
 
-  we use Obj.t here because in essence we are transferring the heap
-  representation back and forth. unfortunately it is not identical
-  between client and server: floats and int32s are unboxed on the
-  Javascript side. we have to convert to boxed for regular OCaml, and
-  we need types to guide the conversion, so that happens in the to_*
-  functions in *_aux.ml.
+  from server to client we can work directly over the heap
+  representation; we have enough information to generate the right
+  Javascript heap object.
 
-  maybe in retrospect not such a clever idea.
+  from client to server we don't have complete information (e.g. the
+  client doesn't know if a particular Javascript number is supposed to
+  be a float or an int). the wire format doesn't distinguish between
+  float and int; we parse it to an intermediate "obj" (for numbers we
+  guess that if there is a period it's a float); then we use the types
+  in the orpc interface to guide the ultimate conversion (see the to_*
+  functions in *_aux.ml).
 *)
 
 let serialize o =
@@ -50,7 +97,7 @@ let serialize o =
     let tag = Obj.tag o in
     if Obj.is_int o then B.add_string b (string_of_int (Obj.obj o))
     else if
-      tag = Obj.lazy_tag || tag = Obj.closure_tag || tag = Obj.object_tag ||
+        tag = Obj.lazy_tag || tag = Obj.closure_tag || tag = Obj.object_tag ||
       tag = Obj.infix_tag || tag = Obj.forward_tag || tag = Obj.no_scan_tag ||
       tag = Obj.abstract_tag || tag = Obj.custom_tag || tag = Obj.int_tag ||
       tag = Obj.out_of_heap_tag
@@ -75,20 +122,20 @@ let serialize o =
 let invalid s = raise (Invalid_argument ("unserialize: invalid " ^ s))
 
 type token =
-    | Int of string
-    | Float of string
-    | String of string
-    | Block_start
-    | Block_end
-    | EOI
+    | Tint of string
+    | Tfloat of string
+    | Tstring of string
+    | Tblock_start
+    | Tblock_end
+    | Teoi
 
 let rec token lb = lexer
-  | '[' -> Block_start
-  | ']' -> Block_end
-  | '-'? ['0'-'9']+ 65535 -> Int (Ulexing.latin1_sub_lexeme lb 0 (Ulexing.lexeme_length lb - 1))
-  | '-'? ['0'-'9']+ '.' ['0'-'9']* 65535 -> Float (Ulexing.latin1_sub_lexeme lb 0 (Ulexing.lexeme_length lb - 1))
-  | 's' [^ 65535]* 65535 -> String (Ulexing.utf8_sub_lexeme lb 1 (Ulexing.lexeme_length lb - 2))
-  | eof -> EOI
+  | '[' -> Tblock_start
+  | ']' -> Tblock_end
+  | '-'? ['0'-'9']+ 65535 -> Tint (Ulexing.latin1_sub_lexeme lb 0 (Ulexing.lexeme_length lb - 1))
+  | '-'? ['0'-'9']+ '.' ['0'-'9']* 65535 -> Tfloat (Ulexing.latin1_sub_lexeme lb 0 (Ulexing.lexeme_length lb - 1))
+  | 's' [^ 65535]* 65535 -> Tstring (Ulexing.utf8_sub_lexeme lb 1 (Ulexing.lexeme_length lb - 2))
+  | eof -> Teoi
   | _ -> invalid ("character " ^ string_of_int (Ulexing.lexeme_char lb 0))
 
 let unserialize s =
@@ -96,43 +143,46 @@ let unserialize s =
   let next_tok () = try token lb lb with Ulexing.Error | Ulexing.InvalidCodepoint _ -> invalid "character" in
   let rec loop () =
     match next_tok () with
-      | Int s -> (try Obj.repr (int_of_string s) with Invalid_argument "int_of_string" -> invalid ("int " ^ s))
-      | Float s -> (try Obj.repr (float_of_string s) with Invalid_argument "float_of_string" -> invalid ("float " ^ s))
-      | String s -> Obj.repr s
-      | Block_start ->
+      | Tint s ->
+          begin
+            try Oint (int_of_string s)
+            with Invalid_argument "int_of_string" ->
+              try Ofloat (float_of_string s) (* in case it's out of range *)
+              with Invalid_argument "float_of_string" ->
+                invalid ("int " ^ s)
+          end
+      | Tfloat s ->
+          begin
+            try Ofloat (float_of_string s)
+            with Invalid_argument "float_of_string" -> invalid ("float " ^ s)
+          end
+      | Tstring s -> Ostring s
+      | Tblock_start ->
           let rec loop2 block =
             match next_tok () with
-              | EOI -> invalid "serialized heap object"
-              | Block_end ->
+              | Teoi -> invalid "serialized heap object"
+              | Tblock_end ->
                   begin
                     match block with
-                      | tag :: fields ->
-                          let len = List.length fields in
-                          if not (Obj.is_int tag) || len = 0 then invalid "block";
-                          let b = Obj.new_block (Obj.obj tag) len in
-                          let rec loop3 i = function
-                            | [] -> ()
-                            | h::t -> Obj.set_field b i h; loop3 (i - 1) t in
-                          loop3 (len - 1) fields;
-                          b
-                      | [] -> invalid "block"
+                      | Oint tag :: ((_::_) as fields) -> Oblock (tag, Array.of_list (List.rev fields))
+                      | _ -> invalid "block"
                   end
               | _ -> Ulexing.rollback lb; loop2 (loop () :: block) in
           loop2 []
-      | EOI | Block_end -> invalid "serialized heap object" in
+      | Teoi | Tblock_end -> invalid "serialized heap object" in
   let o = loop () in
   match next_tok () with
-    | EOI -> o
+    | Teoi -> o
     | _ -> invalid "serialized heap object"
 
 let handler procs (cgi : Netcgi_types.cgi_activation) =
-  let o = unserialize (cgi#argument "BODY")#value in
-  if Obj.is_int o || Obj.tag o <> 0 || Obj.size o <> 2 then raise (Invalid_argument "bad request");
-  let (proc_name, arg) = Obj.obj o in
-  if Obj.is_int proc_name || Obj.tag proc_name <> Obj.string_tag then raise (Invalid_argument "bad request");
+  let (proc_name, arg) =
+    match unserialize (cgi#argument "BODY")#value with
+      | Oblock (0, [| Ostring proc_name; arg |]) -> proc_name, arg
+      | _ -> raise (Invalid_argument "bad request") in
   let proc =
-    try List.assoc (Obj.obj proc_name) procs
-    with Not_found -> raise (Invalid_argument ("bad request " ^ Obj.obj proc_name)) in
+    try List.assoc proc_name procs
+    with Not_found -> raise (Invalid_argument ("bad request " ^ proc_name)) in
   let res = serialize (proc arg) in
 
   (* XXX handle gzip *)
