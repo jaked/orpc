@@ -21,23 +21,19 @@
 let serialize o =
   let a = Javascript.new_Array () in
   let push o = ignore (a#push o) in
-  let push_string s = ignore (a#push (Obj.repr s)) in
+  let push_ffff o = push o; push (Obj.repr (Javascript.Js_string.fromCharCode 65535)) in
   let rec loop o = (* XXX maybe keep an explicit stack here? *)
     match Javascript.typeof o with
-      | "string" ->
-          push_string "\"";
-          push o; (* XXX need to escape here. also need to figure out Unicode *)
-          push_string "\""
-      | "number" -> push o
+      | "string" -> push (Obj.repr "s"); push_ffff o
+      | "number" -> push_ffff o
+      | "boolean" -> push_ffff (Obj.repr (if Obj.obj o then 1 else 0))
       | "object" -> (* XXX check for Array *)
-          push_string "[";
+          push (Obj.repr "[");
           let s = Obj.size o - 1 in
-          for i = 0 to s do
-            loop (Obj.field o i);
-            if i <> s then push_string ","
-          done;
-          push_string "]"
-      | _ -> raise (Failure "unserializeable heap object") in
+          for i = 0 to s do loop (Obj.field o i) done;
+          push_ffff (Obj.repr (Obj.tag o));
+          push (Obj.repr "]")
+      | _ -> raise (Failure "serialize: unserializeable heap object") in
   loop o;
   a#join ""
 
@@ -53,7 +49,7 @@ object
   method abort : unit
   method getAllResponseHeaders : string
   method getResponseHeader : string -> string
-  method open_ : string -> string -> bool -> unit
+  method open__ : string -> string -> bool -> unit
   method send : string -> unit
   method setRequestHeader : string -> string -> unit
 end
@@ -66,7 +62,7 @@ let create url = url
 
 let sync_call url proc arg =
   let xhr = new_XMLHttpRequest () in
-  xhr#open_ "POST" url false;
+  xhr#open__ "POST" url false;
   xhr#setRequestHeader "Content-Type" "text/plain";
   xhr#send (serialize (Obj.repr (proc, arg)));
   if xhr#_get_status = 200
@@ -84,6 +80,6 @@ let add_call url proc arg pass_reply =
             else let s = xhr#_get_statusText in (fun () -> raise (Failure s)) in
           pass_reply r
       | _ -> ()));
-  xhr#open_ "POST" url true;
-  xhr#setRequestHeader "Content-Type" "text/plain";
+  xhr#open__ "POST" url true;
+  xhr#setRequestHeader "Content-Type" "text/plain; charset=utf-8";
   xhr#send (serialize (Obj.repr (proc, arg)))

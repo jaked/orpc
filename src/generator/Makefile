@@ -7,7 +7,7 @@ install: all
 	cp _build/main.native $(BINDIR)/orpc
 
 uninstall:
-	rm $(BINDIR)/orpc
+	rm -f $(BINDIR)/orpc
 
 clean:
 	ocamlbuild -clean
