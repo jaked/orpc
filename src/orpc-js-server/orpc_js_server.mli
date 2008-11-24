@@ -36,4 +36,5 @@ val to_string : obj -> string
 val to_list : (obj -> 'a) -> obj -> 'a list
 val to_option : (obj -> 'a) -> obj -> 'a option
 
-val handler : (string * (obj -> Obj.t)) list -> Netcgi_types.cgi_activation -> unit
+val handler : (string * (obj -> Obj.t)) list -> (Netcgi_types.cgi_activation -> unit)
+val service : (Netcgi_types.cgi_activation -> unit) -> Netcgi_types.cgi_activation Nethttpd_services.dynamic_service

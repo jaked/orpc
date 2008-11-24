@@ -192,3 +192,11 @@ let handler procs (cgi : Netcgi_types.cgi_activation) =
     ();
   cgi#output#output_string res;
   cgi#output#commit_work ()
+
+let service handler = {
+  Nethttpd_services.dyn_handler = (fun _ -> handler);
+  dyn_activation = Nethttpd_services.std_activation `Std_activation_unbuffered;
+  dyn_uri = None;
+  dyn_translator = (fun _ -> "");
+  dyn_accept_all_conditionals = false;
+}

@@ -19,18 +19,10 @@ let start() =
     let click () = incr n; !n
   end) in
 
-  let handlers = [ "clicks", {
-    Nethttpd_services.dyn_handler = (fun _ -> M.handler);
-    dyn_activation = Nethttpd_services.std_activation `Std_activation_unbuffered;
-    dyn_uri = None;
-    dyn_translator = (fun _ -> "");
-    dyn_accept_all_conditionals = false;
-  } ] in
-
   let factories =
     [ Nethttpd_plex.nethttpd_factory
         ~config_cgi
-        ~handlers
+        ~handlers:["clicks", Orpc_js_server.service M.handler]
         ();
     ]
   in
