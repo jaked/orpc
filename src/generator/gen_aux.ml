@@ -90,7 +90,7 @@ let gen_mli name (typedefs, excs, funcs, mode) =
         | args -> Tuple (g, args) in
     let orpc_res =
       if has_excs
-      then Apply (_loc, Some "Orpc", "orpc_result", [res; Apply (_loc, None, "exn", [])])
+      then Apply (_loc, Some "Orpc_onc", "orpc_result", [res; Apply (_loc, None, "exn", [])])
       else res in
     let items aid arg =
       let t = G.gen_type qual_id arg in
@@ -454,7 +454,7 @@ let gen_ml name (typedefs, excs, funcs, mode) =
         | args -> Tuple (_loc, args) in
     let orpc_res =
       if has_excs
-      then Apply (_loc, Some "Orpc", "orpc_result", [res; Apply (_loc, None, "exn", [])])
+      then Apply (_loc, Some "Orpc_onc", "orpc_result", [res; Apply (_loc, None, "exn", [])])
       else res in
     let items aid arg =
       <:str_item<
