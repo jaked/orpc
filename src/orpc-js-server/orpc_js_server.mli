@@ -38,3 +38,5 @@ val to_option : (obj -> 'a) -> obj -> 'a option
 
 val handler : (string * (obj -> Obj.t)) list -> (Netcgi_types.cgi_activation -> unit)
 val service : (Netcgi_types.cgi_activation -> unit) -> Netcgi_types.cgi_activation Nethttpd_services.dynamic_service
+
+val set_debug : (string -> unit) -> unit

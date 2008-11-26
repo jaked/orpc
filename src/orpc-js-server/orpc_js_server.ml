@@ -18,6 +18,9 @@
  * 02111-1307, USA
  *)
 
+let debug = ref ignore
+let set_debug f = debug := f
+
 type obj =
     | Oint of int
     | Ofloat of float
@@ -108,13 +111,25 @@ let serialize o =
     else if tag = Obj.double_array_tag then raise (Invalid_argument "serialize: unimplemented")
     else
       let size = Obj.size o in
-      if tag = 0
-      then B.add_string b "$("
-      else (B.add_string b "$N("; B.add_string b (string_of_int tag); B.add_string b ", ");
+      begin
+        match tag with
+          | 0 -> B.add_string b "$("
+          | 1 -> B.add_string b "$1("
+          | 2 -> B.add_string b "$2("
+          | 3 -> B.add_string b "$3("
+          | 4 -> B.add_string b "$4("
+          | 5 -> B.add_string b "$5("
+          | 6 -> B.add_string b "$6("
+          | 7 -> B.add_string b "$7("
+          | 8 -> B.add_string b "$8("
+          | 9 -> B.add_string b "$9("
+          | _ -> B.add_string b "$N("; B.add_string b (string_of_int tag); B.add_string b ", ["
+      end;
       for i=0 to size-1 do
         loop (Obj.field o i);
         if i < size - 1 then B.add_string b ", "
       done;
+      if tag > 9 then B.add_char b ']';
       B.add_char b ')' in
   loop o;
   B.contents b
@@ -139,6 +154,7 @@ let rec token lb = lexer
   | _ -> invalid ("character " ^ string_of_int (Ulexing.lexeme_char lb 0))
 
 let unserialize s =
+  !debug ("unserialize " ^ s);
   let lb = Ulexing.from_utf8_string s in
   let next_tok () = try token lb lb with Ulexing.Error | Ulexing.InvalidCodepoint _ -> invalid "character" in
   let rec loop () =
