@@ -224,7 +224,7 @@ dispatch begin function
            "%_js_aux.ml"; "%_js_aux.mli";
            "%_js_clnt.ml"; "%_js_clnt.mli";
            "%_js_srv.ml"; "%_js_srv.mli";
-           "%_js_trace.ml"; "%_trace.mli"
+           "%_trace.ml"; "%_trace.mli"
          ]
          ~deps:["%.ml"]
          begin fun env build ->
@@ -237,7 +237,7 @@ dispatch begin function
            "%_js_aux.ml"; "%_js_aux.mli";
            "%_js_clnt.ml"; "%_js_clnt.mli";
            "%_js_srv.ml"; "%_js_srv.mli";
-           "%_js_trace.ml"; "%_trace.mli"
+           "%_trace.ml"; "%_trace.mli"
          ]
          ~deps:["%.mli"]
          begin fun env build ->

@@ -42,7 +42,7 @@ let gen_mli name (typedefs, excs, funcs, mode) =
                 <:sig_item<
                   module Sync : functor (A : $uid:name$.Sync) ->
                   sig
-                    val handler : Netcgi_types.cgi_activation -> unit
+                    val handler : string -> string
                   end
                 >>)
             kinds in
@@ -57,7 +57,7 @@ let gen_mli name (typedefs, excs, funcs, mode) =
             -> $t$
           >>)
         funcs
-        <:ctyp< Netcgi_types.cgi_activation -> unit >>$ ;;
+        <:ctyp< string -> string >>$ ;;
 
     $sgSem_of_list modules$
   >>

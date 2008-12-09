@@ -191,28 +191,33 @@ let unserialize s =
     | Teoi -> o
     | _ -> invalid "serialized heap object"
 
-let handler procs (cgi : Netcgi_types.cgi_activation) =
+let handler procs body =
   let (proc_name, arg) =
-    match unserialize (cgi#argument "BODY")#value with
+    match unserialize body with
       | Oblock (0, [| Ostring proc_name; arg |]) -> proc_name, arg
       | _ -> raise (Invalid_argument "bad request") in
   let proc =
     try List.assoc proc_name procs
     with Not_found -> raise (Invalid_argument ("bad request " ^ proc_name)) in
-  let res = serialize (proc arg) in
+  serialize (proc arg)
 
-  (* XXX handle gzip *)
-  cgi#set_header
-    ~content_type:"text/plain; charset=utf-8"
-    ~cache:`No_cache
-    ();
-  cgi#output#output_string res;
-  cgi#output#commit_work ()
+let service handler =
+  let process (cgi : Netcgi_types.cgi_activation) =
+    let res =
+      try handler (cgi#argument "BODY")#value
+      with Not_found -> raise (Invalid_argument "bad_request") in
+    (* XXX handle gzip *)
+    cgi#set_header
+      ~content_type:"text/plain; charset=utf-8"
+      ~cache:`No_cache
+      ();
+    cgi#output#output_string res;
+    cgi#output#commit_work () in
 
-let service handler = {
-  Nethttpd_services.dyn_handler = (fun _ -> handler);
-  dyn_activation = Nethttpd_services.std_activation `Std_activation_unbuffered;
-  dyn_uri = None;
-  dyn_translator = (fun _ -> "");
-  dyn_accept_all_conditionals = false;
-}
+  {
+    Nethttpd_services.dyn_handler = (fun _ -> process);
+    dyn_activation = Nethttpd_services.std_activation `Std_activation_unbuffered;
+    dyn_uri = None;
+    dyn_translator = (fun _ -> "");
+    dyn_accept_all_conditionals = false;
+  }
