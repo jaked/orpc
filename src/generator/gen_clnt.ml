@@ -167,8 +167,9 @@ let gen_ml name (typedefs, excs, funcs, mode) =
                                 let res = Lwt.wait () in
                                 $G.args_apps <:expr< $lid:id ^ "'async"$ c >> args$
                                   (fun r ->
-                                    try Lwt.wakeup res (r ())
-                                    with exn -> Lwt.wakeup_exn res exn);
+                                    match Orpc.pack_orpc_result r with
+                                      | Orpc.Orpc_success v -> Lwt.wakeup res v
+                                      | Orpc.Orpc_failure e -> Lwt.wakeup_exn res e);
                                 res)
                             >>)$
                 >> in
