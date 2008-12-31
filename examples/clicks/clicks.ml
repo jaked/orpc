@@ -11,7 +11,8 @@ Dom.window#_set_onload (Ocamljs.jsfun (fun () ->
 
   let set_clicks n = Lwt.return (clicks#_set_innerHTML (string_of_int n)) in
 
-  click#_set_onclick (Ocamljs.jsfun (fun () ->
-    ignore(Server.click () >>= set_clicks)));
+  click#_set_onclick (Ocamljs.jsfun (fun _ ->
+    ignore(Server.click () >>= set_clicks);
+    Ocamljs.false_ ()));
 
   ignore(Server.clicks () >>= set_clicks)))

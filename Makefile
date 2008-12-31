@@ -19,4 +19,10 @@ clean:
 	for pkg in $(PKGLIST); do \
 		$(MAKE) -C src/$$pkg clean || exit; \
 	done
+	make -C examples clean
 	rm -rf stage/*
+
+examples:
+	make -C examples
+
+.PHONY: examples
