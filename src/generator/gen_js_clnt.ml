@@ -86,9 +86,9 @@ let gen_ml name (typedefs, excs, funcs, mode) =
       >>)
       ((fun body2 ->
           if has_excs
-          then <:expr< try Orpc.unpack_orpc_result $body2$ with e -> raise (fix_exns e) >>
-          else body2)
-        <:expr< Obj.obj (Orpc_js_client.sync_call client $`str:id$ (Obj.repr x0)) >>) in
+          then <:expr< unpack_orpc_result (fun () -> $body2$) >>
+          else <:expr< Obj.obj $body2$ >>)
+        <:expr< Orpc_js_client.sync_call client $`str:id$ (Obj.repr x0) >>) in
 
   let async_func (_, id, args, res) =
     (fun body ->
@@ -106,7 +106,7 @@ let gen_ml name (typedefs, excs, funcs, mode) =
         Orpc_js_client.add_call client $`str:id$ (Obj.repr x0)
           (fun g -> pass_reply (fun () ->
             $if has_excs
-            then <:expr< try Orpc.unpack_orpc_result (Obj.obj (g ())) with e -> raise (fix_exns e) >>
+            then <:expr< unpack_orpc_result g >>
             else <:expr< Obj.obj (g ()) >>$))
       >> in
 
@@ -158,7 +158,7 @@ let gen_ml name (typedefs, excs, funcs, mode) =
             kinds in
 
   (* exceptions are pointer-compared, so we need to map back to the right ones *)
-  let fix_excs () =
+  let unpack_orpc_result () =
     let string_of_ident = function
       | IdAcc (_, IdUid (_, m), IdUid (_, e)) -> m ^ "." ^ e
       | _ -> assert false in
@@ -170,17 +170,21 @@ let gen_ml name (typedefs, excs, funcs, mode) =
               (List.mapi (fun _ i -> <:expr< Obj.obj (Obj.field o $`int:i+1$) >>) ts)$
       >> in
     <:str_item<
-      let fix_exns (e : exn) =
-        let o = Obj.repr e in
-        let name = Obj.obj (Obj.field (Obj.field o 0) 0) in
-        $ExMat (_loc, <:expr< name >>,
-               mcOr_of_list
-                 (List.map mc excs @
-                     [ <:match_case< _ -> e >> ]))$
+      let unpack_orpc_result g =
+        match Obj.obj (g ())
+        with
+          | Orpc.Orpc_success v -> v
+          | Orpc.Orpc_failure e ->
+              let o = Obj.repr e in
+              let name = Obj.obj (Obj.field (Obj.field o 0) 0) in
+              let e = match name with
+                  $list:List.map mc excs$
+                | _ -> e in
+              raise e
     >> in
 
   <:str_item<
-    $if has_excs then fix_excs () else <:str_item< >>$ ;;
+    $if has_excs then unpack_orpc_result () else <:str_item< >>$ ;;
 
     $stSem_of_list (List.map sync_func funcs)$ ;;
 
