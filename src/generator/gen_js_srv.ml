@@ -67,6 +67,7 @@ let gen_mli name (typedefs, excs, funcs, mode) =
 let gen_ml name (typedefs, excs, funcs, mode) =
 
   let has_excs = excs <> [] in
+  let qual_id = G.qual_id_aux name mode in
 
   let aux_id id = <:ident< $uid:name ^ "_js_aux"$ . $lid:id$ >> in
   let to_arg id = aux_id ("to_" ^ id ^ "'arg") in
@@ -78,7 +79,7 @@ let gen_ml name (typedefs, excs, funcs, mode) =
         Obj.repr
           $(fun body ->
               if has_excs
-              then <:expr< Orpc.pack_orpc_result (fun () -> $body$) >>
+              then <:expr< pack_orpc_result (fun () -> $body$) >>
               else body)
             (let (ps, _) = G.vars args in
              <:expr<
@@ -109,7 +110,27 @@ let gen_ml name (typedefs, excs, funcs, mode) =
                 >>)
             kinds in
 
+  let pack_orpc_result () =
+    let mc (_,id,ts) =
+      match ts with
+        | [] -> <:match_case< $id:qual_id id$ -> Orpc.Orpc_failure e >>
+        | [_] -> <:match_case< $id:qual_id id$ _ -> Orpc.Orpc_failure e >>
+        | _ ->
+            <:match_case<
+              $id:qual_id id$ ($paCom_of_list (List.map (fun _ -> <:patt< _ >>) ts)$) -> Orpc.Orpc_failure e
+            >> in
+    <:str_item<
+      let pack_orpc_result f =
+        try Orpc.Orpc_success (f ())
+        with e ->
+          match e with
+            | $list:List.map mc excs$
+            | _ -> raise e
+    >> in
+
   <:str_item<
+    $if has_excs then pack_orpc_result () else <:str_item< >>$ ;;
+
     let handler =
       $List.fold_right
         (fun (_, id, _, _) e -> <:expr< fun ~ $lid:"proc_" ^ id$ -> $e$ >>)
