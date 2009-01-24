@@ -23,7 +23,7 @@ struct
     ignore (try C.maybe_raise true with _ -> ())
 end
 
-module T = Orpc.Trace_of_formatter(struct let formatter = Format.err_formatter end)
+module T = Orpc_pp.Trace_of_formatter(struct let formatter = Format.err_formatter end)
 
 ;;
 
