@@ -73,8 +73,8 @@ let gen_mli name (typedefs, excs, funcs, mode) =
             (fun kind ->
               let mt = G.string_of_kind kind in
               <:sig_item<
-                module $uid:mt ^ "_pp"$ (P : Pp) (T : Orpc.Trace) (A : $uid:name$.$uid:mt$) : $uid:name$.$uid:mt$
-                module $uid:mt$ (T : Orpc.Trace) (A : $uid:name$.$uid:mt$) : $uid:name$.$uid:mt$
+                module $uid:mt ^ "_pp"$ (P : Pp) (T : Orpc_pp.Trace) (A : $uid:name$.$uid:mt$) : $uid:name$.$uid:mt$
+                module $uid:mt$ (T : Orpc_pp.Trace) (A : $uid:name$.$uid:mt$) : $uid:name$.$uid:mt$
               >>)
             kinds in
 
@@ -181,11 +181,11 @@ let gen_ml name (typedefs, excs, funcs, mode) =
             fun fmt v -> $ExMat (_loc, <:expr< v >>, mcOr_of_list (List.map mc arms))$
           >>
 
-      | Array (_, t) -> <:expr< Orpc.pp_array $gen_format t$ >>
+      | Array (_, t) -> <:expr< Orpc_pp.pp_array $gen_format t$ >>
 
-      | List (_, t) -> <:expr< Orpc.pp_list $gen_format t$ >>
+      | List (_, t) -> <:expr< Orpc_pp.pp_list $gen_format t$ >>
 
-      | Option (_, t) -> <:expr< Orpc.pp_option $gen_format t$ >>
+      | Option (_, t) -> <:expr< Orpc_pp.pp_option $gen_format t$ >>
 
       | Ref (_, t) -> <:expr< fun fmt v -> Format.fprintf fmt "@[<hv 1>(ref@ %a)@]" $gen_format t$ v >>
 
@@ -296,7 +296,7 @@ let gen_ml name (typedefs, excs, funcs, mode) =
     <:str_item<
       module $uid:mt ^ "_pp"$
         (P : Pp)
-        (T : Orpc.Trace)
+        (T : Orpc_pp.Trace)
         (A : $uid:name$.$uid:mt$) =
       struct
         $stSem_of_list (List.map func funcs)$

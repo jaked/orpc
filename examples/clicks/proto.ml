@@ -1,5 +1,3 @@
-type ('a, 'b) foo = Foo of 'a | Bar of 'b
-
 module type Sync =
 sig
   val clicks : unit -> int

@@ -23,17 +23,3 @@ type ('a, 'b) orpc_result = Orpc_success of 'a | Orpc_failure of exn
 val pack_orpc_result : (unit -> 'a) -> ('a, exn) orpc_result
 val pack_orpc_result_async : (('a -> unit) -> unit) -> (('a, exn) orpc_result -> unit) -> unit
 val unpack_orpc_result : ('a, exn) orpc_result -> 'a
-
-val pp_array : (Format.formatter -> 'a -> unit) -> Format.formatter -> 'a array -> unit
-val pp_list : (Format.formatter -> 'a -> unit) -> Format.formatter -> 'a list -> unit
-val pp_option : (Format.formatter -> 'a -> unit) -> Format.formatter -> 'a option -> unit
-
-module type Trace =
-sig
-  type t
-  val trace_call : string -> (Format.formatter -> unit) -> t
-  val trace_reply_ok : t -> (Format.formatter -> unit) -> unit
-  val trace_reply_exn : t -> exn -> (Format.formatter -> unit) -> unit
-end
-
-module Trace_of_formatter (F : sig val formatter : Format.formatter end) : Trace

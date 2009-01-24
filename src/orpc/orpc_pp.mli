@@ -18,18 +18,16 @@
  * 02111-1307, USA
  *)
 
-(* 'b is always exn but the dummy param lets us pass in {of|to}_exn *)
-type ('a, 'b) orpc_result = Orpc_success of 'a | Orpc_failure of exn
+val pp_array : (Format.formatter -> 'a -> unit) -> Format.formatter -> 'a array -> unit
+val pp_list : (Format.formatter -> 'a -> unit) -> Format.formatter -> 'a list -> unit
+val pp_option : (Format.formatter -> 'a -> unit) -> Format.formatter -> 'a option -> unit
 
-let pack_orpc_result f =
-  try Orpc_success (f ())
-  with e -> Orpc_failure e
+module type Trace =
+sig
+  type t
+  val trace_call : string -> (Format.formatter -> unit) -> t
+  val trace_reply_ok : t -> (Format.formatter -> unit) -> unit
+  val trace_reply_exn : t -> exn -> (Format.formatter -> unit) -> unit
+end
 
-let pack_orpc_result_async f k =
-  try f (fun r -> k (Orpc_success r))
-  with e -> k (Orpc_failure e)
-
-let unpack_orpc_result v =
-  match v with
-    | Orpc_success v -> v
-    | Orpc_failure e -> raise e
+module Trace_of_formatter (F : sig val formatter : Format.formatter end) : Trace

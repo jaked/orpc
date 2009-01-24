@@ -1,6 +1,7 @@
 FILES=\
 orpc.cma orpc.cmxa orpc.a orpc.cmjsa \
 orpc.mli orpc.cmi \
+orpc_pp.mli orpc_pp.cmi \
 
 BFILES=$(addprefix _build/,$(FILES))
 
