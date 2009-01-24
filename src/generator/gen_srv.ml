@@ -77,7 +77,7 @@ let gen_mli name (typedefs, excs, funcs, mode) =
         funcs
         <:ctyp< Rpc_server.t -> unit >>$ ;;
 
-    $sgSem_of_list modules$
+    $list:modules$
   >>
 
 
@@ -236,5 +236,5 @@ let gen_ml name (typedefs, excs, funcs, mode) =
               srv
         >>$ ;;
 
-    $stSem_of_list modules$
+    $list:modules$
   >>

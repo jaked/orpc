@@ -35,21 +35,24 @@ let gen_mli name (typedefs, excs, funcs, mode) =
   let qual_id = G.qual_id name mode in
 
   let gen_typedef_typs ds =
-    SgTyp (_loc,
-          tyAnd_of_list
-            (List.map
-                (fun { td_vars = vars; td_id = id; td_typ = t; td_eq = eq } ->
-                  let t = G.gen_type qual_id t in
-                  let t =
-                    match eq with
-                      | Some eq -> TyMan (_loc, TyId (_loc, eq), t)
-                      | None -> t in
-                  TyDcl (_loc, id, G.tvars vars, t, []))
-                ds)) in
+    <:sig_item<
+      type
+        $list:
+          List.map
+            (fun { td_vars = vars; td_id = id; td_typ = t; td_eq = eq } ->
+              let t = G.gen_type qual_id t in
+              let t =
+                match eq with
+                  | Some eq -> TyMan (_loc, TyId (_loc, eq), t)
+                  | None -> t in
+              TyDcl (_loc, id, G.tvars vars, t, []))
+            ds$
+    >> in
 
   let gen_typedef_funs ds =
-    sgSem_of_list
-      (List.map
+    <:sig_item<
+      $list:
+        List.map
           (fun { td_vars = vars; td_id = id } ->
             let appd =
               G.tapps <:ctyp< $id:qual_id id$ >> (G.tvars vars) in
@@ -60,7 +63,8 @@ let gen_mli name (typedefs, excs, funcs, mode) =
                   (List.map (fun v -> <:ctyp< Orpc_js_server.obj -> '$lid:v$ >>) vars)
                   <:ctyp< Orpc_js_server.obj -> $appd$ >>$
           >>)
-          ds) in
+          ds$
+    >> in
 
   let gen_exc (_, id, ts) =
     <:sig_item<
@@ -86,18 +90,18 @@ let gen_mli name (typedefs, excs, funcs, mode) =
     $match mode with
       | Simple ->
           <:sig_item<
-            $sgSem_of_list (List.map gen_typedef_typs typedefs)$ ;;
-            $sgSem_of_list (List.map gen_exc excs)$ ;;
+            $list:List.map gen_typedef_typs typedefs$ ;;
+            $list:List.map gen_exc excs$ ;;
           >>
       | _ -> <:sig_item< >>$ ;;
-    $sgSem_of_list (List.map gen_typedef_funs typedefs)$ ;;
+    $list:List.map gen_typedef_funs typedefs$ ;;
     $if has_excs
      then
        <:sig_item<
          val to_exn : Orpc_js_server.obj -> exn
        >>
      else <:sig_item< >>$ ;;
-    $sgSem_of_list (List.map gen_func funcs)$ ;;
+    $list:List.map gen_func funcs$ ;;
   >>
 
 let gen_ml name (typedefs, excs, funcs, mode) =
@@ -120,7 +124,7 @@ let gen_ml name (typedefs, excs, funcs, mode) =
           let (pps, pes) = G.vars parts in
           <:expr<
             match $x$ with
-              | Orpc_js_server.Oblock (0, [| $paSem_of_list pps$ |]) -> ( $exCom_of_list (List.map2 gen_to parts pes)$ )
+              | Orpc_js_server.Oblock (0, [| $list:pps$ |]) -> ( $exCom_of_list (List.map2 gen_to parts pes)$ )
               | _ -> raise (Invalid_argument "tuple")
           >>
 
@@ -129,7 +133,7 @@ let gen_ml name (typedefs, excs, funcs, mode) =
           let rb f e = <:rec_binding< $id:qual_id f.f_id$ = $gen_to f.f_typ e$ >> in
           <:expr<
             match $x$ with
-              | Orpc_js_server.Oblock (0, [| $paSem_of_list fps$ |]) ->
+              | Orpc_js_server.Oblock (0, [| $list:fps$ |]) ->
                   $ExRec(_loc, rbSem_of_list (List.map2 rb fields fes), <:expr< >>)$
               | _ -> raise (Invalid_argument "record")
           >>
@@ -144,7 +148,7 @@ let gen_ml name (typedefs, excs, funcs, mode) =
                | _ ->
                    let (pps, pes) = G.vars ts in
                    <:match_case<
-                     Orpc_js_server.Oblock ($`int:i$, [| $paSem_of_list pps$ |]) ->
+                     Orpc_js_server.Oblock ($`int:i$, [| $list:pps$ |]) ->
                        $List.fold_left
                          (fun ps p -> <:expr< $ps$ $p$ >>)
                          <:expr< $id:qual_id id$ >>
@@ -153,19 +157,19 @@ let gen_ml name (typedefs, excs, funcs, mode) =
            <:expr<
              match $x$ with
                | Orpc_js_server.Oint _ ->
-                   $ExMat (_loc, x,
-                          mcOr_of_list
-                            (List.mapi
-                                mc
-                                (List.filter (fun (_, ts) -> ts = []) arms) @
-                                [ <:match_case< _ -> raise (Invalid_argument "variant") >> ]))$
+                   (match $x$ with
+                       $list:
+                         List.mapi
+                           mc
+                           (List.filter (fun (_, ts) -> ts = []) arms)$
+                     | _ -> raise (Invalid_argument "variant"))
                | Orpc_js_server.Oblock _ ->
-                   $ExMat (_loc, x,
-                          mcOr_of_list
-                            (List.mapi
-                                mc
-                                (List.filter (fun (_, ts) -> ts <> []) arms) @
-                                [ <:match_case< _ -> raise (Invalid_argument "variant") >> ]))$
+                   (match $x$ with
+                       $list:
+                         List.mapi
+                           mc
+                           (List.filter (fun (_, ts) -> ts <> []) arms)$
+                     | _ -> raise (Invalid_argument "variant"))
                | _ -> raise (Invalid_argument "variant")
            >>
 
@@ -193,32 +197,34 @@ let gen_ml name (typedefs, excs, funcs, mode) =
        | Arrow _ -> assert false in
 
   let gen_typedef_typs ds =
-    StTyp (_loc,
-          tyAnd_of_list
-            (List.map
-                (fun { td_vars = vars; td_id = id; td_typ = t; td_eq = eq } ->
-                  let vars = List.map (fun v -> <:ctyp< '$lid:v$ >>) vars in
-                  let t = G.gen_type qual_id t in
-                  let t =
-                    match eq with
-                      | Some eq -> TyMan (_loc, TyId (_loc, eq), t)
-                      | None -> t in
-                  TyDcl (_loc, id, vars, t, []))
-                ds)) in
+    <:str_item<
+      type
+        $list:
+          List.map
+            (fun { td_vars = vars; td_id = id; td_typ = t; td_eq = eq } ->
+              let vars = List.map (fun v -> <:ctyp< '$lid:v$ >>) vars in
+              let t = G.gen_type qual_id t in
+              let t =
+                match eq with
+                  | Some eq -> TyMan (_loc, TyId (_loc, eq), t)
+                  | None -> t in
+              TyDcl (_loc, id, vars, t, []))
+          ds$
+    >> in
 
   let gen_typedef_funs ds =
     <:str_item<
-      $let es =
-         List.map
-           (fun { td_vars = vars; td_id = id; td_typ = t } ->
-             <:binding<
-               $lid:G.to_ id$ =
-               $G.funs_ids
-                 (List.map G.to_p vars)
-                 <:expr< fun x -> $gen_to t <:expr< x >>$ >>$
-             >>)
-           ds in
-       StVal (_loc, BTrue, biAnd_of_list es)$
+      let rec
+        $list:
+          List.map
+            (fun { td_vars = vars; td_id = id; td_typ = t } ->
+              <:binding<
+                $lid:G.to_ id$ =
+                $G.funs_ids
+                  (List.map G.to_p vars)
+                  <:expr< fun x -> $gen_to t <:expr< x >>$ >>$
+              >>)
+           ds$
     >> in
 
   let gen_exc (_, id, ts) =
@@ -242,15 +248,15 @@ let gen_ml name (typedefs, excs, funcs, mode) =
     $match mode with
       | Simple ->
           <:str_item<
-            $stSem_of_list (List.map gen_typedef_typs typedefs)$ ;;
-            $stSem_of_list (List.map gen_exc excs)$ ;;
+            $list:List.map gen_typedef_typs typedefs$ ;;
+            $list:List.map gen_exc excs$ ;;
           >>
       | _ -> <:str_item< >>$ ;;
-    $stSem_of_list (List.map gen_typedef_funs typedefs)$ ;;
+    $list:List.map gen_typedef_funs typedefs$ ;;
     $if has_excs
      then
        let t = Variant (_loc, List.map (fun (_, id, ts) -> (id, ts)) excs) in
        <:str_item< let to_exn x = $gen_to t <:expr< x >>$ >>
      else <:str_item< >>$ ;;
-    $stSem_of_list (List.map gen_func funcs)$ ;;
+    $list:List.map gen_func funcs$ ;;
   >>

@@ -40,21 +40,24 @@ let gen_mli name (typedefs, excs, funcs, mode) =
   let qual_id = G.qual_id name mode in
 
   let gen_typedef_typs ds =
-    SgTyp (_loc,
-          tyAnd_of_list
-            (List.map
-                (fun { td_vars = vars; td_id = id; td_typ = t; td_eq = eq } ->
-                  let t = G.gen_type qual_id t in
-                  let t =
-                    match eq with
-                      | Some eq -> TyMan (_loc, TyId (_loc, eq), t)
-                      | None -> t in
-                  TyDcl (_loc, id, G.tvars vars, t, []))
-                ds)) in
+    <:sig_item<
+      type
+        $list:
+          List.map
+            (fun { td_vars = vars; td_id = id; td_typ = t; td_eq = eq } ->
+              let t = G.gen_type qual_id t in
+              let t =
+                match eq with
+                  | Some eq -> TyMan (_loc, TyId (_loc, eq), t)
+                  | None -> t in
+              TyDcl (_loc, id, G.tvars vars, t, []))
+          ds$
+    >> in
 
   let gen_typedef_funs ds =
-    sgSem_of_list
-      (List.map
+    <:sig_item<
+      $list:
+        List.map
           (fun { td_vars = vars; td_id = id } ->
             let appd =
               G.tapps <:ctyp< $id:qual_id id$ >> (G.tvars vars) in
@@ -75,7 +78,8 @@ let gen_mli name (typedefs, excs, funcs, mode) =
                   (List.map (fun v -> <:ctyp< Xdr.xdr_type_term >>) vars)
                   <:ctyp< Xdr.xdr_type_term >>$
           >>)
-          ds) in
+          ds$
+    >> in
 
   let gen_exc (_, id, ts) =
     <:sig_item<
@@ -109,11 +113,11 @@ let gen_mli name (typedefs, excs, funcs, mode) =
     $match mode with
       | Simple ->
           <:sig_item<
-            $sgSem_of_list (List.map gen_typedef_typs typedefs)$ ;;
-            $sgSem_of_list (List.map gen_exc excs)$ ;;
+            $list:List.map gen_typedef_typs typedefs$ ;;
+            $list:List.map gen_exc excs$ ;;
           >>
       | _ -> <:sig_item< >>$ ;;
-    $sgSem_of_list (List.map gen_typedef_funs typedefs)$ ;;
+    $list:List.map gen_typedef_funs typedefs$ ;;
     $if has_excs
      then
        <:sig_item<
@@ -122,7 +126,7 @@ let gen_mli name (typedefs, excs, funcs, mode) =
          val xdr_exn : Xdr.xdr_type_term ;;
        >>
      else <:sig_item< >>$ ;;
-    $sgSem_of_list (List.map gen_func funcs)$ ;;
+    $list:List.map gen_func funcs$ ;;
     val program : Rpc_program.t
   >>
 
@@ -147,7 +151,7 @@ let gen_ml name (typedefs, excs, funcs, mode) =
           let (pps, pes) = G.vars parts in
           <:expr<
             match Xdr.dest_xv_struct_fast $x$ with
-              | [| $paSem_of_list pps$ |] -> ( $exCom_of_list (List.map2 gen_to parts pes)$ )
+              | [| $list:pps$ |] -> ( $exCom_of_list (List.map2 gen_to parts pes)$ )
               | _ -> assert false
           >>
 
@@ -156,7 +160,7 @@ let gen_ml name (typedefs, excs, funcs, mode) =
           let rb f e = <:rec_binding< $id:qual_id f.f_id$ = $gen_to f.f_typ e$ >> in
           <:expr<
             match Xdr.dest_xv_struct_fast $x$ with
-              | [| $paSem_of_list fps$ |] ->
+              | [| $list:fps$ |] ->
                   $ExRec(_loc, rbSem_of_list (List.map2 rb fields fes), <:expr< >>)$
               | _ -> assert false
           >>
@@ -171,15 +175,18 @@ let gen_ml name (typedefs, excs, funcs, mode) =
                    <:match_case<
                      ($`int:i$, x) ->
                        match Xdr.dest_xv_struct_fast x with
-                         | [| $paSem_of_list pps$ |] ->
+                         | [| $list:pps$ |] ->
                              $List.fold_left
                                (fun ps p -> <:expr< $ps$ $p$ >>)
                                <:expr< $id:qual_id id$ >>
                                (List.map2 gen_to ts pes)$
                          | _ -> assert false
                    >> in
-           ExMat (_loc, <:expr< Xdr.dest_xv_union_over_enum_fast $x$ >>,
-                 mcOr_of_list (List.mapi mc arms @ [ <:match_case< _ -> assert false >> ]))
+           <:expr<
+             match Xdr.dest_xv_union_over_enum_fast $x$ with
+                 $list:List.mapi mc arms$
+               | _ -> assert false
+           >>
 
        | Array (_, t) ->
            <:expr< Array.map (fun x -> $gen_to t <:expr< x >>$) (Xdr.dest_xv_array $x$) >>
@@ -220,7 +227,7 @@ let gen_ml name (typedefs, excs, funcs, mode) =
           let (pps, pes) = G.vars parts in
           <:expr<
             let ( $paCom_of_list pps$ ) = $v$ in
-            Xdr.XV_struct_fast [| $exSem_of_list (List.map2 gen_of parts pes)$ |]
+            Xdr.XV_struct_fast [| $exSem_of_list (List.map2 gen_of parts pes)$ |] (* XXX not sure why list: doesn't work here *)
           >>
 
       | Record (_, fields) ->
@@ -253,8 +260,7 @@ let gen_ml name (typedefs, excs, funcs, mode) =
                          ($`int:i$,
                          Xdr.XV_struct_fast [| $exSem_of_list (List.map2 gen_of ts pes)$ |])
                    >> in
-           ExMat (_loc, <:expr< $v$ >>,
-                 mcOr_of_list (List.mapi mc arms))
+           <:expr< match $v$ with $list:List.mapi mc arms$ >>
 
        | Array (_, t) ->
            <:expr< Xdr.XV_array (Array.map (fun v -> $gen_of t <:expr< v >>$) $v$) >>
@@ -389,56 +395,59 @@ let gen_ml name (typedefs, excs, funcs, mode) =
     <:expr< Xdr.X_rec ($`str:id$, $gen_xdr vs (id::bs) ds t$) >> in
 
   let gen_typedef_typs ds =
-    StTyp (_loc,
-          tyAnd_of_list
-            (List.map
-                (fun { td_vars = vars; td_id = id; td_typ = t; td_eq = eq } ->
-                  let vars = List.map (fun v -> <:ctyp< '$lid:v$ >>) vars in
-                  let t = G.gen_type qual_id t in
-                  let t =
-                    match eq with
-                      | Some eq -> TyMan (_loc, TyId (_loc, eq), t)
-                      | None -> t in
-                  TyDcl (_loc, id, vars, t, []))
-                ds)) in
+    <:str_item<
+      type
+        $list:
+          List.map
+            (fun { td_vars = vars; td_id = id; td_typ = t; td_eq = eq } ->
+              let vars = List.map (fun v -> <:ctyp< '$lid:v$ >>) vars in
+              let t = G.gen_type qual_id t in
+              let t =
+                match eq with
+                  | Some eq -> TyMan (_loc, TyId (_loc, eq), t)
+                  | None -> t in
+              TyDcl (_loc, id, vars, t, []))
+          ds$
+    >> in
 
   let gen_typedef_funs ds =
     <:str_item<
-      $let es =
-         List.map
-           (fun { td_vars = vars; td_id = id; td_typ = t } ->
-             <:binding<
-               $lid:G.to_ id$ =
-               $G.funs_ids
-                 (List.map G.to_p vars)
-                 <:expr< fun x -> $gen_to t <:expr< x >>$ >>$
-             >>)
-           ds in
-       StVal (_loc, BTrue, biAnd_of_list es)$ ;;
+      let rec
+        $list:
+          List.map
+            (fun { td_vars = vars; td_id = id; td_typ = t } ->
+              <:binding<
+                $lid:G.to_ id$ =
+                $G.funs_ids
+                  (List.map G.to_p vars)
+                  <:expr< fun x -> $gen_to t <:expr< x >>$ >>$
+              >>)
+            ds$ ;;
 
-      $let es =
-         List.map
-           (fun { td_vars = vars; td_id = id; td_typ = t } ->
-             <:binding<
-               $lid:G.of_ id$ =
-               $G.funs_ids
-                 (List.map G.of_p vars)
-                 <:expr< fun x -> $gen_of t <:expr< x >>$ >>$
-             >>)
-           ds in
-       StVal (_loc, BTrue, biAnd_of_list es)$ ;;
+      let rec
+        $list:
+          List.map
+            (fun { td_vars = vars; td_id = id; td_typ = t } ->
+              <:binding<
+                $lid:G.of_ id$ =
+                $G.funs_ids
+                  (List.map G.of_p vars)
+                  <:expr< fun x -> $gen_of t <:expr< x >>$ >>$
+              >>)
+            ds$ ;;
 
-      $let rec loop ds =
-         match ds with
-           | [] -> []
-           | { td_vars = vars; td_id = id; td_typ = t }::ds ->
-               <:binding<
-                 $lid:xdr id$ =
-                 $G.funs_ids
-                   (List.map xdr_p vars)
-                   (gen_xdr_def [] [] ds id t)$
-               >> :: loop ds in
-       stSem_of_list (List.map (fun b -> StVal (_loc, BFalse, b)) (loop ds))$ ;;
+      $list:
+        let rec loop ds =
+          match ds with
+            | [] -> []
+            | { td_vars = vars; td_id = id; td_typ = t }::ds ->
+                <:binding<
+                  $lid:xdr id$ =
+                  $G.funs_ids
+                    (List.map xdr_p vars)
+                    (gen_xdr_def [] [] ds id t)$
+                >> :: loop ds in
+        List.map (fun b -> <:str_item< let $b$ >>) (loop ds)$ ;;
     >> in
 
   let gen_exc (_, id, ts) =
@@ -472,11 +481,11 @@ let gen_ml name (typedefs, excs, funcs, mode) =
     $match mode with
       | Simple ->
           <:str_item<
-            $stSem_of_list (List.map gen_typedef_typs typedefs)$ ;;
-            $stSem_of_list (List.map gen_exc excs)$ ;;
+            $list:List.map gen_typedef_typs typedefs$ ;;
+            $list:List.map gen_exc excs$ ;;
           >>
       | _ -> <:str_item< >>$ ;;
-    $stSem_of_list (List.map gen_typedef_funs typedefs)$ ;;
+    $list:List.map gen_typedef_funs typedefs$ ;;
     $if has_excs
      then
        let t = Variant (_loc, List.map (fun (_, id, ts) -> (id, ts)) excs) in
@@ -486,7 +495,7 @@ let gen_ml name (typedefs, excs, funcs, mode) =
          let xdr_exn = $gen_xdr [] [] [] t$ ;;
        >>
      else <:str_item< >>$ ;;
-    $stSem_of_list (List.map gen_func funcs)$ ;;
+    $list:List.map gen_func funcs$ ;;
 
     let program =
       Rpc_program.create

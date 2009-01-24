@@ -57,8 +57,8 @@ let gen_module_type name (typedefs, _, funcs, mode) =
     >> in
 
   <:sig_item<
-    $sgSem_of_list (List.map gen_typedef typedefs)$ ;;
-    $sgSem_of_list (List.map gen_func funcs)$ ;;
+    $list:List.map gen_typedef typedefs$ ;;
+    $list:List.map gen_func funcs$ ;;
     val pp_exn : Format.formatter -> exn -> unit;;
     val pp_exn'reply : Format.formatter -> exn -> unit;;
   >>
@@ -87,7 +87,7 @@ let gen_mli name (typedefs, excs, funcs, mode) =
     module Pp_pp (P : Pp) : Pp ;;
     module Pp : Pp ;;
 
-    $sgSem_of_list modules$
+    $list:modules$
   >>
 
 let gen_ml name (typedefs, excs, funcs, mode) =
@@ -177,9 +177,7 @@ let gen_ml name (typedefs, excs, funcs, mode) =
                             (fun t v l -> (gen_format t)::v::l)
                             ts pes [])$
                   >> in
-          <:expr<
-            fun fmt v -> $ExMat (_loc, <:expr< v >>, mcOr_of_list (List.map mc arms))$
-          >>
+          <:expr< fun fmt v -> match v with $list:List.map mc arms$ >>
 
       | Array (_, t) -> <:expr< Orpc_pp.pp_array $gen_format t$ >>
 
@@ -216,7 +214,7 @@ let gen_ml name (typedefs, excs, funcs, mode) =
               (gen_format t)$
           >>)
         ds in
-    StVal (_loc, BFalse, biAnd_of_list es) in
+    <:str_item< let $list:es$ >> in
 
   let gen_func (_, id, args, res) =
     let (_, es) = G.vars args in
@@ -299,7 +297,7 @@ let gen_ml name (typedefs, excs, funcs, mode) =
         (T : Orpc_pp.Trace)
         (A : $uid:name$.$uid:mt$) =
       struct
-        $stSem_of_list (List.map func funcs)$
+        $list:List.map func funcs$
       end
 
       module $uid:mt$ = $uid:mt ^ "_pp"$ (Pp)
@@ -325,9 +323,9 @@ let gen_ml name (typedefs, excs, funcs, mode) =
       let pp_exn'reply fmt exn =
         Format.fprintf fmt "@[<hv 2><=!@ %a@]@." P.pp_exn exn ;;
 
-      $stSem_of_list (List.map gen_typedef typedefs)$;;
+      $list:List.map gen_typedef typedefs$;;
 
-      $stSem_of_list (List.map gen_func funcs)$;;
+      $list:List.map gen_func funcs$;;
     end
 
     module rec Pp : Pp =
@@ -335,5 +333,5 @@ let gen_ml name (typedefs, excs, funcs, mode) =
       include Pp_pp(Pp)
     end
 
-    $stSem_of_list modules$
+    $list:modules$
   >>

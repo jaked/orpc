@@ -44,26 +44,26 @@ let gen_mli name (typedefs, excs, funcs, mode) =
             kinds in
 
   <:sig_item<
-    $sgSem_of_list
-      (List.map
-          (fun (_, id, args, res) ->
-            <:sig_item<
-              val $lid:id$ : Orpc_js_client.t ->
-                $G.args_arrows qual_id args (G.gen_type qual_id res)$
-            >>)
-          funcs)$ ;;
+    $list:
+      List.map
+        (fun (_, id, args, res) ->
+          <:sig_item<
+            val $lid:id$ : Orpc_js_client.t ->
+              $G.args_arrows qual_id args (G.gen_type qual_id res)$
+          >>)
+        funcs$ ;;
 
-    $sgSem_of_list
-      (List.map
-          (fun (_, id, args, res) ->
-            <:sig_item<
-              val $lid:id ^ "'async"$ : Orpc_js_client.t ->
-                $G.args_arrows qual_id args
-                  <:ctyp< ((unit -> $G.gen_type qual_id res$) -> unit) -> unit >>$
-            >>)
-          funcs)$ ;;
+    $list:
+      List.map
+        (fun (_, id, args, res) ->
+          <:sig_item<
+            val $lid:id ^ "'async"$ : Orpc_js_client.t ->
+              $G.args_arrows qual_id args
+              <:ctyp< ((unit -> $G.gen_type qual_id res$) -> unit) -> unit >>$
+          >>)
+        funcs$ ;;
 
-    $sgSem_of_list modules$
+    $list:modules$
   >>
 
 let gen_ml name (typedefs, excs, funcs, mode) =
@@ -151,7 +151,7 @@ let gen_ml name (typedefs, excs, funcs, mode) =
               <:str_item<
                 module $uid:G.string_of_kind kind$(C : sig val with_client : (Orpc_js_client.t -> 'a) -> 'a end) =
                 struct
-                  $stSem_of_list (List.map func funcs)$
+                  $list:List.map func funcs$
                 end
               >>)
 
@@ -186,9 +186,9 @@ let gen_ml name (typedefs, excs, funcs, mode) =
   <:str_item<
     $if has_excs then unpack_orpc_result () else <:str_item< >>$ ;;
 
-    $stSem_of_list (List.map sync_func funcs)$ ;;
+    $list:List.map sync_func funcs$ ;;
 
-    $stSem_of_list (List.map async_func funcs)$ ;;
+    $list:List.map async_func funcs$ ;;
 
-    $stSem_of_list modules$
+    $list:modules$
   >>

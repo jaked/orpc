@@ -59,7 +59,7 @@ let gen_mli name (typedefs, excs, funcs, mode) =
         funcs
         <:ctyp< string -> string >>$ ;;
 
-    $sgSem_of_list modules$
+    $list:modules$
   >>
 
 
@@ -137,5 +137,5 @@ let gen_ml name (typedefs, excs, funcs, mode) =
         funcs
         <:expr< Orpc_js_server.handler $G.conses (List.map sync_func funcs)$ >>$ ;;
 
-    $stSem_of_list modules$
+    $list:modules$
   >>
