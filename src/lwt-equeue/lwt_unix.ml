@@ -75,8 +75,8 @@ let check_descriptor ch =
 
 (****)
 
-let inputs = (fun fd -> Unixqueue.Wait_in fd)
-let outputs = (fun fd -> Unixqueue.Wait_out fd)
+let inputs = `Inputs
+let outputs = `Outputs
 
 type 'a outcome =
     Success of 'a
@@ -110,26 +110,53 @@ let rec wrap_syscall set ch cont action =
       ()
 
 and add_action set ch cont action =
+  (*
+    this is a somewhat strange use of Equeue: an Lwt action is a
+    one-shot handler, so these handlers remove themselves when they
+    are called (the fired flag is because event_system#clear doesn't
+    clear the handler immediately, but queues a Terminate event, so a
+    handler can be called more than once even though it clears its own
+    group). the Shutdown and Perform_actions events are meant to
+    broadcast to all actions, so the handlers reject them (and it is
+    no harm to reject the input/output events as well).
+  *)
   assert (ch.state = Open);
   let es = !event_system () in
   let g = es#new_group () in
-  es#add_resource g (set ch.fd, -1.);
-  es#add_handler g (fun _ _ e ->
-    match e with
-      | Unixqueue.Input_arrived (_, fd)
-      | Unixqueue.Output_readiness (_, fd)
-      | Unixqueue.Extra (Perform_actions fd) when fd = ch.fd ->
-          es#clear g;
-          wrap_syscall set ch cont action;
-          (*
-            if e is Perform_actions run other actions
-            otherwise harmless since this is the only handler in group
-          *)
-          raise Equeue.Reject
-      | Unixqueue.Extra Shutdown ->
-          es#clear g;
-          raise Equeue.Reject
-      | _ -> raise Equeue.Reject)
+  let fired = ref false in
+  let fire () =
+    fired := true;
+    es#clear g;
+    wrap_syscall set ch cont action;
+    raise Equeue.Reject in
+  let op =
+    match set with
+      | `Inputs -> Unixqueue.Wait_in ch.fd
+      | `Outputs -> Unixqueue.Wait_out ch.fd in
+  let handler =
+    match set with
+      | `Inputs ->
+          (fun _ _ e ->
+            match !fired, e with
+              | false, Unixqueue.Input_arrived (_, fd)
+              | false, Unixqueue.Extra (Perform_actions fd) when fd = ch.fd ->
+                  fire ()
+              | _, Unixqueue.Extra Shutdown ->
+                  es#clear g;
+                  raise Equeue.Reject
+              | _ -> raise Equeue.Reject)
+      | `Outputs ->
+          (fun _ _ e ->
+            match !fired, e with
+              | false, Unixqueue.Output_readiness (_, fd)
+              | false, Unixqueue.Extra (Perform_actions fd) when fd = ch.fd ->
+                  fire ()
+              | _, Unixqueue.Extra Shutdown ->
+                  es#clear g;
+                  raise Equeue.Reject
+              | _ -> raise Equeue.Reject) in
+  es#add_resource g (op, -1.);
+  es#add_handler g handler
 
 let register_action set ch action =
   let cont = Lwt.wait () in
