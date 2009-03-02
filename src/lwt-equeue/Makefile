@@ -10,6 +10,7 @@ lwt_queue.mli lwt_queue.cmi \
 lwt_timeout.mli lwt_timeout.cmi \
 lwt_unix.mli lwt_unix.cmi \
 lwt_util.mli lwt_util.cmi \
+lwt_equeue.mli lwt_equeue.cmi
 
 BFILES=$(addprefix _build/,$(FILES))
 

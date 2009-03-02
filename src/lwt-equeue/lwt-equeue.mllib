@@ -9,3 +9,4 @@ Lwt_timeout
 Lwt_unix
 Lwt_util
 Pqueue
+Lwt_equeue
