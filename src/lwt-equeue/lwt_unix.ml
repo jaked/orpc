@@ -20,23 +20,10 @@
  * 02111-1307, USA
  *)
 
-exception Event_system_not_set
-
-let event_system = ref (fun () -> raise Event_system_not_set)
-
-let set_event_system es = event_system := fun () -> es
-
-exception Shutdown
-
-let unset_event_system () =
-  let es = !event_system () in
-  es#add_event (Unixqueue.Extra Shutdown);
-  event_system := fun () -> raise Event_system_not_set
-
 let sleep d =
   let res = Lwt.wait () in
   if d >= 0.0 then begin
-    let es = !event_system () in
+    let es = Lwt_equeue.event_system () in
     let g = es#new_group () in
     es#add_resource g (Unixqueue.Wait (es#new_wait_id ()), d);
     es#add_handler g (fun _ _ e ->
@@ -45,7 +32,7 @@ let sleep d =
             Lwt.wakeup res ();
             es#clear g;
             raise Equeue.Reject
-        | Unixqueue.Extra Shutdown ->
+        | Unixqueue.Extra Lwt_equeue.Shutdown ->
             es#clear g;
             raise Equeue.Reject
         | _ -> raise Equeue.Reject)
@@ -53,6 +40,12 @@ let sleep d =
   res
 
 let yield () = sleep 0.
+
+let run t =
+  (Lwt_equeue.event_system ())#run ();
+  match Lwt.poll t with
+    | Some v -> v
+    | None -> failwith "Lwt_unix: thread did not complete"
 
 (****)
 
@@ -75,8 +68,14 @@ let check_descriptor ch =
 
 (****)
 
+type watchers = [ `Inputs | `Outputs ]
+
 let inputs = `Inputs
 let outputs = `Outputs
+
+exception Retry
+exception Retry_write
+exception Retry_read
 
 type 'a outcome =
     Success of 'a
@@ -91,12 +90,19 @@ let rec wrap_syscall set ch cont action =
       check_descriptor ch;
       Success (action ())
     with
+      Retry
     | Unix.Unix_error ((Unix.EAGAIN | Unix.EWOULDBLOCK | Unix.EINTR), _, _)
     | Sys_blocked_io ->
         (* EINTR because we are catching SIG_CHLD hence the system call
            might be interrupted to handle the signal; this lets us restart
            the system call eventually. *)
         add_action set ch cont action;
+        Requeued
+    | Retry_read ->
+        add_action inputs ch cont action;
+        Requeued
+    | Retry_write ->
+        add_action outputs ch cont action;
         Requeued
     | e ->
         Exn e
@@ -121,7 +127,7 @@ and add_action set ch cont action =
     no harm to reject the input/output events as well).
   *)
   assert (ch.state = Open);
-  let es = !event_system () in
+  let es = Lwt_equeue.event_system () in
   let g = es#new_group () in
   let fired = ref false in
   let fire () =
@@ -141,7 +147,7 @@ and add_action set ch cont action =
               | false, Unixqueue.Input_arrived (_, fd)
               | false, Unixqueue.Extra (Perform_actions fd) when fd = ch.fd ->
                   fire ()
-              | _, Unixqueue.Extra Shutdown ->
+              | _, Unixqueue.Extra Lwt_equeue.Shutdown ->
                   es#clear g;
                   raise Equeue.Reject
               | _ -> raise Equeue.Reject)
@@ -151,7 +157,7 @@ and add_action set ch cont action =
               | false, Unixqueue.Output_readiness (_, fd)
               | false, Unixqueue.Extra (Perform_actions fd) when fd = ch.fd ->
                   fire ()
-              | _, Unixqueue.Extra Shutdown ->
+              | _, Unixqueue.Extra Lwt_equeue.Shutdown ->
                   es#clear g;
                   raise Equeue.Reject
               | _ -> raise Equeue.Reject) in
@@ -167,7 +173,7 @@ let register_action set ch action =
 
 let set_state ch st =
   ch.state <- st;
-  let es = !event_system () in
+  let es = Lwt_equeue.event_system () in
   (* run all our handlers for this fd, other handlers will reject *)
   es#add_event (Unixqueue.Extra (Perform_actions ch.fd))
 
@@ -184,20 +190,20 @@ let read ch buf pos len =
     check_descriptor ch;
     Lwt.return (Unix.read ch.fd buf pos len)
   with
-      Unix.Unix_error ((Unix.EAGAIN | Unix.EWOULDBLOCK), _, _) ->
-        register_action inputs ch (fun () -> Unix.read ch.fd buf pos len)
-    | e ->
-        Lwt.fail e
+    Unix.Unix_error ((Unix.EAGAIN | Unix.EWOULDBLOCK), _, _) ->
+      register_action inputs ch (fun () -> Unix.read ch.fd buf pos len)
+  | e ->
+      Lwt.fail e
 
 let write ch buf pos len =
   try
     check_descriptor ch;
     Lwt.return (Unix.write ch.fd buf pos len)
   with
-      Unix.Unix_error ((Unix.EAGAIN | Unix.EWOULDBLOCK), _, _) ->
-        register_action outputs ch (fun () -> Unix.write ch.fd buf pos len)
-    | e ->
-        Lwt.fail e
+    Unix.Unix_error ((Unix.EAGAIN | Unix.EWOULDBLOCK), _, _) ->
+      register_action outputs ch (fun () -> Unix.write ch.fd buf pos len)
+  | e ->
+      Lwt.fail e
 
 let wait_read ch = register_action inputs ch (fun () -> ())
 let wait_write ch = register_action outputs ch (fun () -> ())
@@ -231,17 +237,17 @@ let accept ch =
     check_descriptor ch;
     register_action inputs ch
       (fun () ->
-        let (s, addr) = Unix.accept ch.fd in
-        (mk_ch s, addr))
+         let (s, addr) = Unix.accept ch.fd in
+         (mk_ch s, addr))
   with e ->
     Lwt.fail e
 
 let check_socket ch =
   register_action outputs ch
     (fun () ->
-      try ignore (Unix.getpeername ch.fd) with
-          Unix.Unix_error (Unix.ENOTCONN, _, _) ->
-            (* Get the socket error *)
+       try ignore (Unix.getpeername ch.fd) with
+         Unix.Unix_error (Unix.ENOTCONN, _, _) ->
+           (* Get the socket error *)
            ignore (Unix.read ch.fd " " 0 1))
 
 let connect ch addr =
@@ -255,6 +261,12 @@ let connect ch addr =
         check_socket ch
   | e ->
       Lwt.fail e
+
+let wait _ = failwith "Lwt_unix.wait: not implemented"
+
+let waitpid _ _ = failwith "Lwt_unix.waitpid: not implemented"
+
+let system _ = failwith "Lwt_unix.system: not implemented"
 
 let close ch =
   if ch.state = Closed then check_descriptor ch;
@@ -382,3 +394,10 @@ let close_process_full (inchan, outchan, errchan) =
 *)
 
 (****)
+
+(* Monitoring functions *)
+let inputs_length () = failwith "Lwt_unix.inputs_length: not implemented"
+let outputs_length () = failwith "Lwt_unix.outputs_length: not implemented"
+let wait_children_length () = failwith "Lwt_unix.wait_children_length: not implemented"
+let get_new_sleeps () = failwith "Lwt_unix.get_new_sleeps: not implemented"
+let sleep_queue_size () = failwith "Lwt_unix.sleep_queue_size: not implemented"
