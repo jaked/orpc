@@ -1,3 +1,5 @@
+-include ../../Makefile.conf
+
 FILES=\
 orpc-js-server.cma orpc-js-server.cmxa orpc-js-server.a \
 orpc_js_server.mli orpc_js_server.cmi \

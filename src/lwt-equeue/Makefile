@@ -1,3 +1,5 @@
+-include ../../Makefile.conf
+
 FILES=\
 lwt-equeue.cma lwt-equeue.cmxa lwt-equeue.a \
 lwt.mli lwt.cmi \

@@ -1,3 +1,5 @@
+-include ../../Makefile.conf
+
 FILES=\
 orpc-js-client.cmjsa \
 orpc_js_client.mli orpc_js_client.cmi \

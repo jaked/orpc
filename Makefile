@@ -1,4 +1,4 @@
-PKGLIST=generator orpc orpc-onc lwt-equeue orpc-js-client orpc-js-server
+-include Makefile.conf
 
 all:
 	for pkg in $(PKGLIST); do \
@@ -21,6 +21,9 @@ clean:
 	done
 	make -C examples clean
 	rm -rf stage/*
+
+distclean: clean
+	rm -rf Makefile.conf
 
 examples:
 	make -C examples

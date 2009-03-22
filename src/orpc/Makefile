@@ -1,12 +1,18 @@
+-include ../../Makefile.conf
+
+ifeq ($(ENABLE_OCAMLJS),1)
+CMJSA=orpc.cmjsa
+endif
+
 FILES=\
-orpc.cma orpc.cmxa orpc.a orpc.cmjsa \
+orpc.cma orpc.cmxa orpc.a $(CMJSA) \
 orpc.mli orpc.cmi \
 orpc_pp.mli orpc_pp.cmi \
 
 BFILES=$(addprefix _build/,$(FILES))
 
 all: myocamlbuild.ml
-	ocamlbuild orpc.cma orpc.cmxa orpc.cmjsa
+	ocamlbuild orpc.cma orpc.cmxa $(CMJSA)
 	ocamlfind remove -destdir ../../stage orpc
 	ocamlfind install -destdir ../../stage orpc META $(BFILES)
 

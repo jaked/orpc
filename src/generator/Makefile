@@ -1,4 +1,4 @@
-BINDIR=`ocamlfind printconf stdlib`/../../bin
+-include ../../Makefile.conf
 
 all:
 	ocamlbuild main.native

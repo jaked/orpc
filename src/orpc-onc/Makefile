@@ -1,3 +1,5 @@
+-include ../../Makefile.conf
+
 FILES=\
 orpc-onc.cma orpc-onc.cmxa orpc-onc.a \
 orpc_onc.mli orpc_onc.cmi \

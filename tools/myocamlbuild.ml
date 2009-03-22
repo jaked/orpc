@@ -154,7 +154,10 @@ let find_packages () =
 let find_syntaxes () = ["camlp4o"; "camlp4r"]
 
 (* ocamlfind command *)
-let ocamlfind x = S[A"ocamlfindjs"; x]
+let ocamlfind x =
+  if List.mem "ocamljs" (find_packages ())
+  then S[A"ocamlfindjs"; x]
+  else S[A"ocamlfind"; x]
 
 ;;
 
