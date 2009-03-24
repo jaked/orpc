@@ -121,7 +121,7 @@ let gen_ml name (typedefs, excs, funcs, mode) =
                let ( $paCom_of_list ps$ ) = $id:to_arg id$ x0 in
                $G.args_apps <:expr< $lid:"proc_" ^ id$ s >> args$
              >>)
-            <:expr< (fun y -> Rpc_server.reply s ($id:of_res id$ y)) >>$
+            <:expr< (fun y -> try Rpc_server.reply s ($id:of_res id$ y) with _ -> ()) >>$
         }
       >> in
 
@@ -140,17 +140,19 @@ let gen_ml name (typedefs, excs, funcs, mode) =
                      $G.args_apps <:expr< A.$lid:id$ >> args$
                    >>$)
                 (fun v ->
-                  Rpc_server.reply s
-                    ($id:of_res id$
-                        $if has_excs
-                         then <:expr< Orpc.Orpc_success v >>
-                         else <:expr< v >>$);
+                  (try
+                    Rpc_server.reply s
+                      ($id:of_res id$
+                          $if has_excs
+                           then <:expr< Orpc.Orpc_success v >>
+                           else <:expr< v >>$);
+                  with _ -> ());
                   Lwt.return ())
                 (fun e ->
                   $if has_excs
                    then
                      <:expr<
-                       Rpc_server.reply s ($id:of_res id$ (Orpc.Orpc_failure e));
+                       (try Rpc_server.reply s ($id:of_res id$ (Orpc.Orpc_failure e)) with _ -> ());
                        Lwt.return ()
                      >>
                    else <:expr< raise e >>$))
