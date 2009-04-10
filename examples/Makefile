@@ -3,7 +3,7 @@
 DIRS=matrixmult modules modules_async modules_lwt simple simple_async
 
 ifeq ($(ENABLE_OCAMLJS),1)
-DIR=$(DIRS) clicks
+DIRS += clicks
 endif
 
 all:

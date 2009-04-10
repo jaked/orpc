@@ -228,7 +228,7 @@ fi
 
 echo "Writing Makefile.conf"
 cat <<_EOF_ >Makefile.conf
-# Makefike.conf written by configure
+# Makefile.conf written by configure
 # The orpc version
 VERSION = $version
 

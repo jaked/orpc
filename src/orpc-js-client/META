@@ -1,5 +1,5 @@
 name="Orpc-js-client"
-version="0.1"
+version="0.2"
 description="Orpc-js support for client"
 requires = "ocamljs,javascript,orpc"
 archive(js) = "orpc-js-client.cmjsa"
