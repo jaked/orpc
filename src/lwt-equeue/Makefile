@@ -19,6 +19,9 @@ BFILES=$(addprefix _build/,$(FILES))
 all: myocamlbuild.ml
 	ocamlbuild lwt-equeue.cma lwt-equeue.cmxa
 
+doc:
+	ocamlbuild -no-links doc.docdir/index.html
+
 install:
 	ocamlfind install lwt-equeue META $(BFILES)
 

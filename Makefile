@@ -5,6 +5,12 @@ all:
 		$(MAKE) -C src/$$pkg all || exit; \
 	done
 
+doc:
+	for pkg in $(PKGLIST); do \
+		$(MAKE) -C src/$$pkg doc || exit; \
+	done
+	find . -name '*.odoc' | awk '{print "-load"; print $$1}' | xargs ocamldoc -html -sort -d doc
+
 install:
 	for pkg in $(PKGLIST); do \
 		$(MAKE) -C src/$$pkg install || exit; \
@@ -20,6 +26,7 @@ clean:
 		$(MAKE) -C src/$$pkg clean || exit; \
 	done
 	make -C examples clean
+	rm -rf doc/*
 	rm -rf stage/*
 
 distclean: clean
@@ -28,4 +35,7 @@ distclean: clean
 examples:
 	make -C examples
 
-.PHONY: examples
+.PHONY: examples doc
+
+gcode:
+	rsync -a --delete --exclude '.svn/' doc/ ../doc/

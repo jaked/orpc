@@ -7,10 +7,14 @@ orpc_onc.mli orpc_onc.cmi \
 BFILES=$(addprefix _build/,$(FILES))
 
 all: myocamlbuild.ml
+	OCAMLFIND_IGNORE_DUPS_IN=$(LIBDIR)/site-lib \
 	OCAMLPATH=`pwd`/../../stage \
 	ocamlbuild orpc-onc.cma orpc-onc.cmxa
-	ocamlfind remove -destdir ../../stage orpc-onc
-	ocamlfind install -destdir ../../stage orpc-onc META $(BFILES)
+
+doc:
+	OCAMLFIND_IGNORE_DUPS_IN=$(LIBDIR)/site-lib \
+	OCAMLPATH=`pwd`/../../stage \
+	ocamlbuild -no-links doc.docdir/index.html
 
 install:
 	ocamlfind install orpc-onc META $(BFILES)

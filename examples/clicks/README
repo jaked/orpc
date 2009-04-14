@@ -1,0 +1,8 @@
+You need ocamljs for this example. Fix the "docroot" path in
+server.cfg, run the server with
+
+  ./server.byte -conf server.cfg
+
+then point your browser at
+
+  http://localhost:9007/

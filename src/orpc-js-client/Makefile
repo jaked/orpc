@@ -8,8 +8,9 @@ BFILES=$(addprefix _build/,$(FILES))
 
 all: myocamlbuild.ml
 	ocamlbuild orpc-js-client.cmjsa
-	ocamlfind remove -destdir ../../stage orpc-js-client
-	ocamlfind install -destdir ../../stage orpc-js-client META $(BFILES)
+
+doc:
+	ocamlbuild -no-links doc.docdir/index.html
 
 install:
 	ocamlfind install orpc-js-client META $(BFILES)

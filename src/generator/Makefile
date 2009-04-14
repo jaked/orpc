@@ -3,6 +3,8 @@
 all:
 	ocamlbuild main.native
 
+doc:
+
 install: all
 	cp _build/main.native $(BINDIR)/orpc
 

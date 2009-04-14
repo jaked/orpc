@@ -43,6 +43,7 @@ get_path () {
 set_defaults () {
     enable_ocamljs=1
     bindir=`dirname $ocamlc`
+    libdir=`ocamlc -where`
 }
 
 ocamlc=`get_path ocamlc`
@@ -88,6 +89,7 @@ print_options () {
 		fi
 	done
 	echo "    -bindir $bindir"
+	echo "    -libdir $libdir"
 }
 
 
@@ -108,6 +110,9 @@ _EOF_
 	cat <<_EOF_ >&2
 -bindir dir
         Install binaries into this directory
+
+-libdir dir
+        Install libraries into this directory (default same as ocamlc -where)
 
 Defaults are:
 
@@ -145,6 +150,11 @@ while [ "$#" -gt 0 ]; do
 			;;
                 -bindir)
                         bindir="$2"
+                        shift
+                        shift
+                        ;;
+                -libdir)
+                        libdir="$2"
                         shift
                         shift
                         ;;
@@ -240,6 +250,9 @@ REQUIRES = $requires
 
 # Where binaries are installed:
 BINDIR = $bindir
+
+# Where libraries are installed:
+LIBDIR = $libdir
 
 ENABLE_OCAMLJS = $enable_ocamljs
 _EOF_

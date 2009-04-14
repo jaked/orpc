@@ -16,6 +16,9 @@ all: myocamlbuild.ml
 	ocamlfind remove -destdir ../../stage orpc
 	ocamlfind install -destdir ../../stage orpc META $(BFILES)
 
+doc:
+	ocamlbuild -no-links doc.docdir/index.html
+
 install:
 	ocamlfind install orpc META $(BFILES)
 
