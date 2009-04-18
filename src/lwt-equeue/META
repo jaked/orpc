@@ -2,5 +2,26 @@ name="Lwt-Equeue"
 description="Lightweight threads on top of Equeue"
 requires="unix,equeue"
 version="0.2"
-archive(byte) = "lwt-equeue.cma"
-archive(native) = "lwt-equeue.cmxa"
+archive(byte) = "lwt.cma"
+archive(native) = "lwt.cmxa"
+
+package "preemptive" (
+  description = "Preemptive threads support for Lwt"
+  requires = "threads,lwt-equeue"
+  archive(mt,byte) = "lwt_preemptive.cma"
+  archive(mt,native) = "lwt_preemptive.cmxa"
+)
+
+package "ssl" (
+  description = "SSL support for Lwt"
+  requires = "ssl,lwt-equeue"
+  archive(byte) = "lwt_ssl.cma"
+  archive(native) = "lwt_ssl.cmxa"
+)
+
+package "extra" (
+  description = "Unix functions for Lwt using Lwt_preemptive"
+  requires = "lwt-equeue.preemptive"
+  archive(mt,byte) = "lwt_extra.cma"
+  archive(mt,native) = "lwt_extra.cmxa"
+)
