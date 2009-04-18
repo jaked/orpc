@@ -42,6 +42,7 @@ get_path () {
 
 set_defaults () {
     enable_ocamljs=1
+    enable_ssl=1
     bindir=`dirname $ocamlc`
     libdir=`ocamlc -where`
 }
@@ -56,9 +57,10 @@ exec_suffix=""
 # Option parsing
 
 ehelp_ocamljs="Enable/disable parts that depend on ocamljs"
+ehelp_ssl="Enable/disable parts that depend on ocaml-ssl"
 
 # Which options exist? eoptions for enable/disable, woptions for with/without:
-eoptions="ocamljs"
+eoptions="ocamljs ssl"
 
 # Packages to include anyway:
 requires="unix,equeue,rpc"
@@ -220,6 +222,22 @@ if [ $enable_ocamljs -gt 0 ]; then
 fi
 
 ######################################################################
+# Check that ocaml-ssl is available:
+
+if [ $enable_ssl -gt 0 ]; then
+    printf "%s"; "Checking for ocaml-ssl... "
+    if check_library ssl; then
+        echo "found"
+    else
+        echo "not found"
+        echo "ocaml-ssl is required for -enable-ssl."
+        echo "Try -disable-ssl, or get ocaml-ssl from:"
+        echo "http://savonet.sourceforge.net/"
+        exit 1
+    fi
+fi
+
+######################################################################
 # Summary
 
 echo
@@ -255,6 +273,7 @@ BINDIR = $bindir
 LIBDIR = $libdir
 
 ENABLE_OCAMLJS = $enable_ocamljs
+ENABLE_SSL = $enable_ssl
 _EOF_
 
 ######################################################################
