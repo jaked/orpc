@@ -42,7 +42,7 @@ get_path () {
 
 set_defaults () {
     enable_ocamljs=1
-    enable_ssl=1
+    enable_ssl=0
     bindir=`dirname $ocamlc`
     libdir=`ocamlc -where`
 }
