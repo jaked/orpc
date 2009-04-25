@@ -6,7 +6,7 @@ all:
 doc:
 
 install: all
-	cp _build/main.native $(BINDIR)/orpc
+	install _build/main.native $(BINDIR)/orpc
 
 uninstall:
 	rm -f $(BINDIR)/orpc
