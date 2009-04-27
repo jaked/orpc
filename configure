@@ -225,7 +225,7 @@ fi
 # Check that ocaml-ssl is available:
 
 if [ $enable_ssl -gt 0 ]; then
-    printf "%s"; "Checking for ocaml-ssl... "
+    printf "%s" "Checking for ocaml-ssl... "
     if check_library ssl; then
         echo "found"
     else
