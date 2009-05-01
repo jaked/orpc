@@ -1,3 +1,12 @@
+IFDEF DEBUG
+THEN
+class type console =
+object
+  method log : string -> unit
+end
+let console = (Ocamljs.var "console" : console)
+ENDIF
+
 module D = Dom
 let d = D.document
 
@@ -102,27 +111,42 @@ let check_board rows _ =
 
 let (>>=) = Lwt.(>>=)
 
+IFDEF FAKE_SERVER
+THEN
+module Server =
+  Proto_js_clnt.Lwt(struct
+    let with_client f =
+      let r = string_of_int (Random.int 38) in
+      f (Orpc_js_client.create r)
+  end)
+ELSE
 module Server =
   Proto_js_clnt.Lwt(struct let with_client f = f (Orpc_js_client.create "/sudoku") end)
+ENDIF
 
 let get_board rows _ =
   ignore
-    (Server.get_board () >>= fun board ->
-      for i = 0 to 8 do
-        for j = 0 to 8 do
-          let cell = rows.(i).(j) in
-          let style = cell#_get_style in
-          style#_set_backgroundColor "#ffffff";
-          match board.(i).(j) with
-            | None ->
-                cell#_set_value "";
-                cell#_set_disabled false
-            | Some n ->
-                cell#_set_value (string_of_int n);
-                cell#_set_disabled true
-        done
-      done;
-      Lwt.return ());
+    (Lwt.catch
+        (fun () ->
+          Server.get_board () >>= fun board ->
+            for i = 0 to 8 do
+              for j = 0 to 8 do
+                let cell = rows.(i).(j) in
+                let style = cell#_get_style in
+                style#_set_backgroundColor "#ffffff";
+                match board.(i).(j) with
+                  | None ->
+                      cell#_set_value "";
+                      cell#_set_disabled false
+                  | Some n ->
+                      cell#_set_value (string_of_int n);
+                      cell#_set_disabled true
+              done
+            done;
+            Lwt.return ())
+        (fun e ->
+          IFDEF DEBUG THEN console#log (Obj.magic e) ENDIF;
+          Lwt.return ()));
   false
 
 let onload () =

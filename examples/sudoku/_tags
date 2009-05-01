@@ -1,6 +1,6 @@
 <proto.ml> : pkg_lwt-js
 <proto_js_clnt.ml*> : pkg_lwt-js,pkg_orpc-js-client
-<sudoku.ml> : pkg_lwt-js,pkg_orpc-js-client,pkg_dom
+<sudoku.ml> : pkg_lwt-js,pkg_orpc-js-client,pkg_dom,syntax_camlp4o,pkg_camlp4.macro
 <sudoku.js> : pkg_lwt-js,pkg_orpc-js-client,pkg_dom
 
 <proto_js_srv.ml*> : pkg_nethttpd,pkg_orpc-js-server
