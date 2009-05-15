@@ -195,7 +195,7 @@ dispatch begin function
          flag ["ocaml"; "ocamldep"; "syntax_"^syntax] & S[A"-syntax"; A syntax];
          flag ["ocaml"; "doc";      "syntax_"^syntax] & S[A"-syntax"; A syntax];
        end (find_syntaxes ());
-       
+
        (* The default "thread" tag is not compatible with ocamlfind.
           Indeed, the default rules add the "threads.cma" or
           "threads.cmxa" options when using this tag. When using the
@@ -207,6 +207,12 @@ dispatch begin function
           plugin. *)
        flag ["ocaml"; "pkg_threads"; "compile"] & S[A "-thread"];
        flag ["ocaml"; "pkg_threads"; "link"] & S[A "-thread"];
+
+       flag ["ocaml"; "compile"; "DEBUG"] & S[A"-ppopt"; A"-DDEBUG"];
+       flag ["ocaml"; "ocamldep"; "DEBUG"] & S[A"-ppopt"; A"-DDEBUG"];
+
+       flag ["ocaml"; "compile"; "FAKE_SERVER"] & S[A"-ppopt"; A"-DFAKE_SERVER"];
+       flag ["ocaml"; "ocamldep"; "FAKE_SERVER"] & S[A"-ppopt"; A"-DFAKE_SERVER"];
 
        rule ("orpc: %.ml -> %_aux.ml[i]")
          ~prods:[
