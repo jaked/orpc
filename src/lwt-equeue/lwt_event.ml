@@ -71,7 +71,6 @@ let lwt_return thunk =
   with e -> Lwt.fail e
 
 let basic_sync abort_env genev =
-  (*prerr_endline "basic_sync";*)
   let performed = ref (-1) in
   let condition = Lwt.wait() in
   let bev = Array.create (Array.length genev)
@@ -83,11 +82,11 @@ let basic_sync abort_env genev =
   let rec poll_events i =
     if i >= Array.length bev
     then false
-    else ((*Printf.eprintf "before poll %d\n%!" i;*) bev.(i).poll()) || poll_events (i+1) in
+    else bev.(i).poll() || poll_events (i+1) in
   if poll_events 0 then Lwt.wakeup condition ()
   else begin
     (* Suspend on all events *)
-    for i = 0 to Array.length bev - 1 do (*Printf.eprintf "before suspend %d\n%!" i;*) bev.(i).suspend() done;
+    for i = 0 to Array.length bev - 1 do bev.(i).suspend() done;
   end;
   (* Wait until the condition is signalled *)
   let (>>=) = Lwt.bind in condition >>= fun () ->
@@ -139,7 +138,6 @@ let rec flatten_event
   | Guard fn -> flatten_event abort_list accu accu_abort (fn ())
 
 let sync ev =
-  (*prerr_endline "sync";*)
   let (evl,abort_env) = flatten_event [] [] [] ev in
   basic_sync abort_env (scramble_array(Array.of_list evl))
 
@@ -272,6 +270,6 @@ let rec wrap ev fn =
 
 (* Convenience functions *)
 
-let select evl = (*prerr_endline "select";*) sync(Choose evl)
+let select evl = sync(Choose evl)
 
 let behavior b = Communication b
