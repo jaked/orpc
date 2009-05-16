@@ -20,32 +20,43 @@
  * MA 02111-1307, USA
  *)
 
+(* forward declaration so code order matches regular lwt_unix.ml *)
+let setup_events = ref (fun () -> failwith "setup_events unset")
+
+module SleepQueue =
+  Pqueue.Make (struct
+    type t = float * unit Lwt.t
+    let compare (t, _) (t', _) = compare t t'
+  end)
+let sleep_queue = ref SleepQueue.empty
+let new_sleeps = ref []
+
 let sleep d =
   let res = Lwt.wait () in
-  if d >= 0.0 then begin
-    let es = Lwt_equeue.event_system () in
-    let g = es#new_group () in
-    es#add_resource g (Unixqueue.Wait (es#new_wait_id ()), d);
-    es#add_handler g (fun _ _ e ->
-      match e with
-        | Unixqueue.Timeout _ ->
-            Lwt.wakeup res ();
-            es#clear g;
-            raise Equeue.Reject
-        | Unixqueue.Extra Lwt_equeue.Shutdown ->
-            es#clear g;
-            raise Equeue.Reject
-        | _ -> raise Equeue.Reject)
-  end;
+  let t = if d <= 0. then 0. else Unix.gettimeofday () +. d in
+  new_sleeps := (t, res) :: !new_sleeps;
+  !setup_events ();
   res
 
 let yield () = sleep 0.
 
-let run t =
-  (Lwt_equeue.event_system ())#run ();
-  match Lwt.poll t with
-    | Some v -> v
-    | None -> failwith "Lwt_unix: thread did not complete"
+let get_time t =
+  if !t = -1. then t := Unix.gettimeofday ();
+  !t
+
+let in_the_past now t =
+  t = 0. || t <= get_time now
+
+let rec restart_threads now =
+  match
+    try Some (SleepQueue.find_min !sleep_queue) with Not_found -> None
+  with
+    Some (time, thr) when in_the_past now time ->
+      sleep_queue := SleepQueue.remove_min !sleep_queue;
+      Lwt.wakeup thr ();
+      restart_threads now
+  | _ ->
+      ()
 
 (****)
 
@@ -68,21 +79,30 @@ let check_descriptor ch =
 
 (****)
 
-type watchers = [ `Inputs | `Outputs ]
+module FdMap =
+  Map.Make (struct type t = Unix.file_descr let compare = compare end)
 
-let inputs = `Inputs
-let outputs = `Outputs
+type watchers = (file_descr * (unit -> unit) list ref) FdMap.t ref
+
+let inputs = ref FdMap.empty
+let outputs = ref FdMap.empty
 
 exception Retry
 exception Retry_write
 exception Retry_read
 
+let find_actions set ch =
+  try
+    FdMap.find ch.fd !set
+  with Not_found ->
+    let res = (ch, ref []) in
+    set := FdMap.add ch.fd res !set;
+    res
+
 type 'a outcome =
     Success of 'a
   | Exn of exn
   | Requeued
-
-exception Perform_actions of Unix.file_descr
 
 let rec wrap_syscall set ch cont action =
   let res =
@@ -116,66 +136,106 @@ let rec wrap_syscall set ch cont action =
       ()
 
 and add_action set ch cont action =
-  (*
-    this is a somewhat strange use of Equeue: an Lwt action is a
-    one-shot handler, so these handlers remove themselves when they
-    are called (the fired flag is because event_system#clear doesn't
-    clear the handler immediately, but queues a Terminate event, so a
-    handler can be called more than once even though it clears its own
-    group). the Shutdown and Perform_actions events are meant to
-    broadcast to all actions, so the handlers reject them (and it is
-    no harm to reject the input/output events as well).
-  *)
   assert (ch.state = Open);
-  let es = Lwt_equeue.event_system () in
-  let g = es#new_group () in
-  let fired = ref false in
-  let fire () =
-    fired := true;
-    es#clear g;
-    wrap_syscall set ch cont action;
-    raise Equeue.Reject in
-  let op =
-    match set with
-      | `Inputs -> Unixqueue.Wait_in ch.fd
-      | `Outputs -> Unixqueue.Wait_out ch.fd in
-  let handler =
-    match set with
-      | `Inputs ->
-          (fun _ _ e ->
-            match !fired, e with
-              | false, Unixqueue.Input_arrived (_, fd)
-              | false, Unixqueue.Extra (Perform_actions fd) when fd = ch.fd ->
-                  fire ()
-              | _, Unixqueue.Extra Lwt_equeue.Shutdown ->
-                  es#clear g;
-                  raise Equeue.Reject
-              | _ -> raise Equeue.Reject)
-      | `Outputs ->
-          (fun _ _ e ->
-            match !fired, e with
-              | false, Unixqueue.Output_readiness (_, fd)
-              | false, Unixqueue.Extra (Perform_actions fd) when fd = ch.fd ->
-                  fire ()
-              | _, Unixqueue.Extra Lwt_equeue.Shutdown ->
-                  es#clear g;
-                  raise Equeue.Reject
-              | _ -> raise Equeue.Reject) in
-  es#add_resource g (op, -1.);
-  es#add_handler g handler
+  let (_, actions) = find_actions set ch in
+  actions := (fun () -> wrap_syscall set ch cont action) :: !actions;
+  !setup_events ()
 
 let register_action set ch action =
   let cont = Lwt.wait () in
   add_action set ch cont action;
   cont
 
+let perform_actions set fd =
+  try
+    let (ch, actions) = FdMap.find fd !set in
+    set := FdMap.remove fd !set;
+    List.iter (fun f -> f ()) !actions
+  with Not_found ->
+    ()
+
+let active_descriptors set = FdMap.fold (fun key _ l -> key :: l) !set []
+
+let blocked_thread_count set =
+  FdMap.fold (fun key (_, l) c -> List.length !l + c) !set 0
+
+(****)
+
+(* it doesn't matter what event system we create a group on, it's just a token *)
+(* XXX but once it is terminated we cannot reuse it *)
+let group = (Unixqueue.create_unix_event_system ())#new_group ()
+
+let old_events = ref []
+
+let has_handler = ref false
+
+let rec setup_events' () =
+  sleep_queue :=
+    List.fold_left
+      (fun q e -> SleepQueue.add e q) !sleep_queue !new_sleeps;
+  new_sleeps := [];
+  let next_event =
+    try
+      let (time, _) = SleepQueue.find_min !sleep_queue in Some time
+    with Not_found ->
+      None
+  in
+  let now = ref (-1.) in
+  let delay =
+    match next_event with
+        None      -> -1.
+      | Some 0.   -> 0.
+      | Some time -> max 0. (time -. get_time now)
+  in
+  let infds = active_descriptors inputs in
+  let outfds = active_descriptors outputs in
+  let es = Lwt_equeue.event_system () in
+  List.iter (fun e -> es#remove_resource group e) !old_events;
+  let new_events =
+    Unixqueue.Wait (es#new_wait_id ()) ::
+      List.map (fun fd -> Unixqueue.Wait_in fd) infds @
+      List.map (fun fd -> Unixqueue.Wait_out fd) outfds in
+  old_events := new_events;
+  ListLabels.iter new_events ~f:(fun e ->
+    let timeout = match e with Unixqueue.Wait _ -> delay | _ -> -1. in
+    es#add_resource group (e, timeout));
+  if not !has_handler
+  then begin
+    has_handler := true;
+    es#add_handler group handler
+  end
+
+and handler _ _ e =
+  let readers, writers =
+    match e with
+      | Unixqueue.Input_arrived (_, fd) -> [ fd ], []
+      | Unixqueue.Output_readiness (_, fd) -> [], [ fd ]
+      | Unixqueue.Timeout _ -> [], []
+      | Unixqueue.Extra Lwt_equeue.Shutdown ->
+          (Lwt_equeue.event_system ())#clear group;
+          raise Equeue.Reject
+      | _ -> raise Equeue.Reject in
+  let now = ref (-1.) in
+  restart_threads now;
+  List.iter (fun fd -> perform_actions inputs fd) readers;
+  List.iter (fun fd -> perform_actions outputs fd) writers;
+  setup_events' ()
+
+;;
+setup_events := setup_events'
+
+let run t =
+  (Lwt_equeue.event_system ())#run ();
+  match Lwt.poll t with
+    | Some v -> v
+    | None -> failwith "Lwt_unix: thread did not complete"
+
 (****)
 
 let set_state ch st =
   ch.state <- st;
-  let es = Lwt_equeue.event_system () in
-  (* run all our handlers for this fd, other handlers will reject *)
-  es#add_event (Unixqueue.Extra (Perform_actions ch.fd))
+  perform_actions inputs ch.fd;
+  perform_actions outputs ch.fd
 
 let abort ch e =
   if ch.state <> Closed then
@@ -396,8 +456,8 @@ let close_process_full (inchan, outchan, errchan) =
 (****)
 
 (* Monitoring functions *)
-let inputs_length () = failwith "Lwt_unix.inputs_length: not implemented"
-let outputs_length () = failwith "Lwt_unix.outputs_length: not implemented"
+let inputs_length () = blocked_thread_count inputs
+let outputs_length () = blocked_thread_count outputs
 let wait_children_length () = failwith "Lwt_unix.wait_children_length: not implemented"
-let get_new_sleeps () = failwith "Lwt_unix.get_new_sleeps: not implemented"
-let sleep_queue_size () = failwith "Lwt_unix.sleep_queue_size: not implemented"
+let get_new_sleeps () = List.length !new_sleeps
+let sleep_queue_size () = SleepQueue.size !sleep_queue

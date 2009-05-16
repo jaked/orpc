@@ -69,3 +69,16 @@ val poll : 'a event -> 'a option
    and if one can take place immediately, perform it and return
    [Some r] where [r] is the result value of that communication.
    Otherwise, return [None] without blocking. *)
+
+type 'a basic_event =
+  { poll: unit -> bool;
+      (* If communication can take place immediately, return true. *)
+    suspend: unit -> unit;
+      (* Offer the communication on the channel and get ready
+         to suspend current process. *)
+    result: unit -> 'a }
+      (* Return the result of the communication *)
+
+type 'a behavior = int ref -> unit Lwt.t -> int -> 'a basic_event
+
+val behavior : 'a behavior -> 'a event

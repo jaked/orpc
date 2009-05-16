@@ -66,7 +66,12 @@ let do_aborts abort_env genev performed =
     end
   end
 
+let lwt_return thunk =
+  try Lwt.return (thunk())
+  with e -> Lwt.fail e
+
 let basic_sync abort_env genev =
+  (*prerr_endline "basic_sync";*)
   let performed = ref (-1) in
   let condition = Lwt.wait() in
   let bev = Array.create (Array.length genev)
@@ -78,23 +83,24 @@ let basic_sync abort_env genev =
   let rec poll_events i =
     if i >= Array.length bev
     then false
-    else bev.(i).poll() || poll_events (i+1) in
-  if not (poll_events 0) then begin
+    else ((*Printf.eprintf "before poll %d\n%!" i;*) bev.(i).poll()) || poll_events (i+1) in
+  if poll_events 0 then Lwt.wakeup condition ()
+  else begin
     (* Suspend on all events *)
-    for i = 0 to Array.length bev - 1 do bev.(i).suspend() done;
+    for i = 0 to Array.length bev - 1 do (*Printf.eprintf "before suspend %d\n%!" i;*) bev.(i).suspend() done;
   end;
   (* Wait until the condition is signalled *)
   let (>>=) = Lwt.bind in condition >>= fun () ->
   (* Extract the result *)
   if abort_env = [] then
     (* Preserve tail recursion *) (* ? *)
-    Lwt.return (bev.(!performed).result())
+    lwt_return bev.(!performed).result
   else begin
     let num = !performed in
-    let result = bev.(num).result() in
+    let result = lwt_return bev.(num).result in
     (* Handle the aborts and return the result *)
     do_aborts abort_env genev num;
-    Lwt.return result
+    result
   end
 
 (* Apply a random permutation on an array *)
@@ -133,6 +139,7 @@ let rec flatten_event
   | Guard fn -> flatten_event abort_list accu accu_abort (fn ())
 
 let sync ev =
+  (*prerr_endline "sync";*)
   let (evl,abort_env) = flatten_event [] [] [] ev in
   basic_sync abort_env (scramble_array(Array.of_list evl))
 
@@ -154,8 +161,9 @@ let basic_poll abort_env genev =
   let ready = poll_events 0 in
   if ready then begin
     (* Extract the result *)
-    let result = Some(bev.(!performed).result()) in
-    do_aborts abort_env genev !performed; result
+    let result = lwt_return bev.(!performed).result in
+    do_aborts abort_env genev !performed;
+    Lwt.poll result
   end else begin
     (* Cancel the communication offers *)
     performed := 0;
@@ -264,4 +272,6 @@ let rec wrap ev fn =
 
 (* Convenience functions *)
 
-let select evl = sync(Choose evl)
+let select evl = (*prerr_endline "select";*) sync(Choose evl)
+
+let behavior b = Communication b
