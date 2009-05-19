@@ -17,7 +17,7 @@ type 'a channel
 val new_channel : unit -> 'a channel
 (** Return a new channel. *)
 
-type +'a event
+type 'a event
 (** The type of communication events returning a result of type ['a]. *)
 
 (** [send ch v] returns the event consisting in sending the value [v]
@@ -33,11 +33,14 @@ val always : 'a -> 'a event
 (** [always v] returns an event that is always ready for
    synchronization.  The result value of this event is [v]. *)
 
+val never : 'a event
+(** [never] is an event that is never ready for synchronization. *)
+
 val choose : 'a event list -> 'a event
 (** [choose evl] returns the event that is the alternative of
    all the events in the list [evl]. *)
 
-val wrap : 'a event -> ('a -> 'b) -> 'b event
+val wrap : 'a event -> ('a -> 'b Lwt.t) -> 'b event
 (** [wrap ev fn] returns the event that performs the same communications
    as [ev], then applies the post-processing function [fn]
    on the return value. *)
@@ -76,7 +79,7 @@ type 'a basic_event =
     suspend: unit -> unit;
       (* Offer the communication on the channel and get ready
          to suspend current process. *)
-    result: unit -> 'a }
+    result: unit -> 'a Lwt.t }
       (* Return the result of the communication *)
 
 type 'a behavior = int ref -> unit Lwt.t -> int -> 'a basic_event

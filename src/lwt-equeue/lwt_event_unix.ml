@@ -37,9 +37,9 @@ let sockop watchers ch name f =
 
     let result () =
       match !res with
-        | `None -> invalid_arg name
-        | `Value v -> v
-        | `Exn e -> raise e in
+        | `None -> Lwt.fail (Invalid_argument name)
+        | `Value v -> Lwt.return v
+        | `Exn e -> Lwt.fail e in
 
     { Lwt_event.poll = poll; suspend = suspend; result = result })
 

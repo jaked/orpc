@@ -13,6 +13,8 @@
 
 (* $Id: event.ml,v 1.14 2001/12/07 13:40:21 xleroy Exp $ *)
 
+let (>>=) = Lwt.bind
+
 (* Events *)
 type 'a basic_event =
   { poll: unit -> bool;
@@ -20,7 +22,7 @@ type 'a basic_event =
     suspend: unit -> unit;
       (* Offer the communication on the channel and get ready
          to suspend current process. *)
-    result: unit -> 'a }
+    result: unit -> 'a Lwt.t }
       (* Return the result of the communication *)
 
 type 'a behavior = int ref -> unit Lwt.t -> int -> 'a basic_event
@@ -66,10 +68,6 @@ let do_aborts abort_env genev performed =
     end
   end
 
-let lwt_return thunk =
-  try Lwt.return (thunk())
-  with e -> Lwt.fail e
-
 let basic_sync abort_env genev =
   let performed = ref (-1) in
   let condition = Lwt.wait() in
@@ -89,17 +87,19 @@ let basic_sync abort_env genev =
     for i = 0 to Array.length bev - 1 do bev.(i).suspend() done;
   end;
   (* Wait until the condition is signalled *)
-  let (>>=) = Lwt.bind in condition >>= fun () ->
+  condition >>= fun () ->
   (* Extract the result *)
   if abort_env = [] then
-    (* Preserve tail recursion *) (* ? *)
-    lwt_return bev.(!performed).result
+    (* Preserve tail recursion *)
+    bev.(!performed).result()
   else begin
     let num = !performed in
-    let result = lwt_return bev.(num).result in
     (* Handle the aborts and return the result *)
-    do_aborts abort_env genev num;
-    result
+    Lwt.finalize
+      bev.(num).result
+      (fun () ->
+        do_aborts abort_env genev num;
+        Lwt.return ())
   end
 
 (* Apply a random permutation on an array *)
@@ -159,9 +159,12 @@ let basic_poll abort_env genev =
   let ready = poll_events 0 in
   if ready then begin
     (* Extract the result *)
-    let result = lwt_return bev.(!performed).result in
-    do_aborts abort_env genev !performed;
-    Lwt.poll result
+    Lwt.poll
+      (Lwt.finalize
+          bev.(!performed).result
+          (fun () ->
+            do_aborts abort_env genev !performed;
+            Lwt.return ()))
   end else begin
     (* Cancel the communication offers *)
     performed := 0;
@@ -186,7 +189,9 @@ let always data =
   Communication(fun performed condition evnum ->
     { poll = (fun () -> performed := evnum; true);
       suspend = (fun () -> ());
-      result = (fun () -> data) })
+      result = (fun () -> Lwt.return data) })
+
+let never = Choose []
 
 let send channel data =
   Communication(fun performed condition evnum ->
@@ -214,7 +219,7 @@ let send channel data =
       suspend = (fun () ->
         channel.writes_pending <- cleanup_queue channel.writes_pending;
         Queue.add wcomm channel.writes_pending);
-      result = (fun () -> ()) })
+      result = (fun () -> Lwt.return ()) })
 
 let receive channel =
   Communication(fun performed condition evnum ->
@@ -244,8 +249,8 @@ let receive channel =
       Queue.add rcomm channel.reads_pending);
     result = (fun () ->
       match rcomm.data with
-        None -> invalid_arg "Event.receive"
-      | Some res -> res) })
+        None -> Lwt.fail (Invalid_argument "Event.receive")
+      | Some res -> Lwt.return res) })
 
 let choose evl = Choose evl
 
@@ -260,7 +265,7 @@ let rec wrap ev fn =
         let bev = genev performed condition evnum in
         { poll = bev.poll;
           suspend = bev.suspend;
-          result = (fun () -> fn(bev.result())) })
+          result = (fun () -> bev.result() >>= fn) })
   | Choose evl ->
       Choose(List.map (fun ev -> wrap ev fn) evl)
   | WrapAbort (ev, f') ->
