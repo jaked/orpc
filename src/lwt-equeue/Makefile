@@ -33,6 +33,7 @@ lwt_queue.mli lwt_queue.cmi \
 lwt_pqueue.mli lwt_pqueue.cmi \
 lwt_event.mli lwt_event.cmi \
 lwt_event_unix.mli lwt_event_unix.cmi \
+lwt_event_queue.mli lwt_event_queue.cmi \
 $(SSL_FILES)
 
 BFILES=$(addprefix _build/,$(FILES))
