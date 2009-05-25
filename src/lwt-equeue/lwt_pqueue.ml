@@ -63,7 +63,7 @@ struct
         (Lwt_unix.sleep timeout >>= fun () ->
           Lwt_mutex.lock t.m >>= fun () ->
             timed_out := true;
-            Lwt_condition.signal t.c;
+            Lwt_condition.broadcast t.c;
             Lwt_mutex.unlock t.m;
             Lwt.return ());
     Lwt_mutex.lock t.m >>= fun () ->
