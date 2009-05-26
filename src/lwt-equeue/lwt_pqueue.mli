@@ -31,7 +31,7 @@ sig
   type elt
   type t
   val create : unit -> t
-  val add : elt -> t -> unit Lwt.t
+  val add : elt -> t -> unit
   val take : ?timeout:float -> t -> elt Lwt.t
   val size : t -> int
   val fold : ('a -> elt -> 'a) -> 'a -> t -> 'a

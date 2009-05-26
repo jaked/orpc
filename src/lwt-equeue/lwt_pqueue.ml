@@ -33,7 +33,7 @@ sig
   type elt
   type t
   val create : unit -> t
-  val add : elt -> t -> unit Lwt.t
+  val add : elt -> t -> unit
   val take : ?timeout:float -> t -> elt Lwt.t
   val size : t -> int
   val fold: ('a -> elt -> 'a) -> 'a -> t -> 'a
@@ -49,11 +49,8 @@ struct
   let create () = { m = Lwt_mutex.create (); c = Lwt_condition.create (); pq = PQ.empty }
 
   let add e t =
-    Lwt_mutex.lock t.m >>= fun () ->
-      t.pq <- PQ.add e t.pq;
-      Lwt_condition.signal t.c;
-      Lwt_mutex.unlock t.m;
-      Lwt.return ()
+    t.pq <- PQ.add e t.pq;
+    Lwt_condition.signal t.c
 
   let take ?(timeout=(-1.)) t =
     let timed_out = ref false in
@@ -61,11 +58,9 @@ struct
     then
       Lwt.ignore_result
         (Lwt_unix.sleep timeout >>= fun () ->
-          Lwt_mutex.lock t.m >>= fun () ->
-            timed_out := true;
-            Lwt_condition.broadcast t.c;
-            Lwt_mutex.unlock t.m;
-            Lwt.return ());
+          timed_out := true;
+          Lwt_condition.broadcast t.c;
+          Lwt.return ());
     Lwt_mutex.lock t.m >>= fun () ->
       let rec while_empty () =
         if !timed_out then Lwt.return false

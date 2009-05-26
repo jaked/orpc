@@ -27,11 +27,8 @@ exception Timeout
 let create () = { m = Lwt_mutex.create (); c = Lwt_condition.create (); q = Queue.create () }
 
 let add e t =
-  Lwt_mutex.lock t.m >>= fun () ->
-    Queue.add e t.q;
-    Lwt_condition.signal t.c;
-    Lwt_mutex.unlock t.m;
-    Lwt.return ()
+  Queue.add e t.q;
+  Lwt_condition.signal t.c
 
 let take ?(timeout=(-1.)) t =
   let timed_out = ref false in
@@ -39,11 +36,9 @@ let take ?(timeout=(-1.)) t =
   then
     Lwt.ignore_result
       (Lwt_unix.sleep timeout >>= fun () ->
-        Lwt_mutex.lock t.m >>= fun () ->
-          timed_out := true;
-          Lwt_condition.broadcast t.c;
-          Lwt_mutex.unlock t.m;
-          Lwt.return ());
+        timed_out := true;
+        Lwt_condition.broadcast t.c;
+        Lwt.return ());
   Lwt_mutex.lock t.m >>= fun () ->
     let rec while_empty () =
       if !timed_out then Lwt.return false

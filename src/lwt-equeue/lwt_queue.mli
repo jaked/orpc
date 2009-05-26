@@ -23,5 +23,5 @@ type 'a t
 exception Timeout
 
 val create : unit -> 'a t
-val add : 'a -> 'a t -> unit Lwt.t
+val add : 'a -> 'a t -> unit
 val take : ?timeout:float -> 'a t -> 'a Lwt.t
