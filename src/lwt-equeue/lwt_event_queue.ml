@@ -23,11 +23,11 @@ let create () =
       Lwt.return ()) in
 
   let rec loop () =
-    let take =
+    let evs =
       if Queue.is_empty q
-      then never
-      else take () in
-    select [ add; take ] >>= loop in
+      then [ add ]
+      else [ add; take () ] in
+    select evs >>= loop in
   ignore (loop ());
 
   { inch = inch; ouch = ouch }
