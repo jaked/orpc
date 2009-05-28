@@ -43,6 +43,7 @@ get_path () {
 set_defaults () {
     enable_ocamljs=1
     enable_ssl=0
+    enable_type_conv=1
     bindir=`dirname $ocamlc`
     libdir=`ocamlc -where`
 }
@@ -58,9 +59,10 @@ exec_suffix=""
 
 ehelp_ocamljs="Enable/disable parts that depend on ocamljs"
 ehelp_ssl="Enable/disable parts that depend on ocaml-ssl"
+ehelp_type_conv="Enable/disable parts that depend on type-conv"
 
 # Which options exist? eoptions for enable/disable, woptions for with/without:
-eoptions="ocamljs ssl"
+eoptions="ocamljs ssl type_conv"
 
 # Packages to include anyway:
 requires="unix,equeue,rpc"
@@ -238,6 +240,22 @@ if [ $enable_ssl -gt 0 ]; then
 fi
 
 ######################################################################
+# Check that type-conv is available:
+
+if [ $enable_type_conv -gt 0 ]; then
+    printf "%s" "Checking for type-conv... "
+    if check_library "type-conv"; then
+        echo "found"
+    else
+        echo "not found"
+        echo "type-conv is required for -enable-type_conv."
+        echo "Try -disable-type_conv, or get type-conv from:"
+        echo "http://www.ocaml.info/home/ocaml_sources.html#type-conv"
+        exit 1
+    fi
+fi
+
+######################################################################
 # Summary
 
 echo
@@ -274,6 +292,7 @@ LIBDIR = $libdir
 
 ENABLE_OCAMLJS = $enable_ocamljs
 ENABLE_SSL = $enable_ssl
+ENABLE_TYPE_CONV = $enable_type_conv$
 _EOF_
 
 ######################################################################

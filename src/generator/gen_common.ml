@@ -77,6 +77,13 @@ let apps e es =
     e
     es
 
+let papps p ps =
+  List.fold_left
+    (* (fun p p' -> <:patt< $p$ $p'$ >>) *)(* this doesn't work in orig syntax? *)
+    (fun p p' -> PaApp(_loc, p, p'))
+    p
+    ps
+
 let conses es =
   List.fold_right
     (fun e cs -> <:expr< $e$ :: $cs$ >>)
@@ -86,6 +93,16 @@ let conses es =
 let is_uppercase = function
   | 'A' .. 'Z' -> true
   | _ -> false
+
+let id id =
+  (* XXX do we need to deal with compound ids here? *)
+  if is_uppercase id.[0]
+  then <:ident< $uid:id$ >>
+  else <:ident< $lid:id$ >>
+
+let module_id uids lid =
+  Ast.idAcc_of_list
+    (List.map (fun uid -> <:ident< $uid:uid$ >>) uids @ [ <:ident< $lid:lid$ >> ])
 
 let qual_id name mode id =
   if is_uppercase id.[0]
@@ -118,6 +135,8 @@ let qual_id_aux name mode id =
 let gen_type qual_id t =
 
   let rec gt = function
+    | Abstract _ -> assert false
+
     | Unit _ -> <:ctyp< unit >>
     | Int _ -> <:ctyp< int >>
     | Int32 _ -> <:ctyp< int32 >>
@@ -163,8 +182,8 @@ let gen_type qual_id t =
         List.fold_left
           (fun t a -> <:ctyp< $gt a$ $t$ >>)
           (match mdl with
-            | None -> <:ctyp< $id:qual_id id$ >>
-            | Some mdl -> <:ctyp< $uid:mdl$.$lid:id$ >>)
+            | [] -> <:ctyp< $id:qual_id id$ >>
+            | _ -> <:ctyp< $id:module_id mdl id$ >>)
           args
 
     | Arrow _ -> assert false in

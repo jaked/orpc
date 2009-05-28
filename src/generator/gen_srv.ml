@@ -100,7 +100,7 @@ let gen_ml name (typedefs, excs, funcs, mode) =
               else body)
             (let (ps, _) = G.vars args in
              <:expr<
-               let ( $paCom_of_list ps$ ) = $id:to_arg id$ x0 in
+               let ( $tup:paCom_of_list ps$ ) = $id:to_arg id$ x0 in
                $G.args_apps <:expr< $lid:"proc_" ^ id$ >> args$
              >>)$
       }
@@ -118,7 +118,7 @@ let gen_ml name (typedefs, excs, funcs, mode) =
               else <:expr< $body$ $body2$ >>)
             (let (ps, _) = G.vars args in
              <:expr<
-               let ( $paCom_of_list ps$ ) = $id:to_arg id$ x0 in
+               let ( $tup:paCom_of_list ps$ ) = $id:to_arg id$ x0 in
                $G.args_apps <:expr< $lid:"proc_" ^ id$ s >> args$
              >>)
             <:expr< (fun y -> try Rpc_server.reply s ($id:of_res id$ y) with _ -> ()) >>$
@@ -136,7 +136,7 @@ let gen_ml name (typedefs, excs, funcs, mode) =
                 (fun () ->
                   $let (ps, _) = G.vars args in
                    <:expr<
-                     let ( $paCom_of_list ps$ ) = $id:to_arg id$ x0 in
+                     let ( $tup:paCom_of_list ps$ ) = $id:to_arg id$ x0 in
                      $G.args_apps <:expr< A.$lid:id$ >> args$
                    >>$)
                 (fun v ->

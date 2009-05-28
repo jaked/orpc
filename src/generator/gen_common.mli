@@ -37,7 +37,10 @@ val tapps : Ast.ctyp -> Ast.ctyp list -> Ast.ctyp
 val funs : Ast.patt list -> Ast.expr -> Ast.expr
 val funs_ids : string list -> Ast.expr -> Ast.expr
 val apps : Ast.expr -> Ast.expr list -> Ast.expr
+val papps : Ast.patt -> Ast.patt list -> Ast.patt
 val conses : Ast.expr list -> Ast.expr
+val id : string -> Ast.ident
+val module_id : string list -> string -> Ast.ident
 val qual_id : string -> Types.mode -> string -> Ast.ident
 val qual_id_aux : string -> Types.mode -> string -> Ast.ident
 val gen_type : (Types.ident -> Ast.ident) -> Types.typ -> Ast.ctyp

@@ -1,2 +1,3 @@
-<*.ml*> : camlp4of, use_camlp4_full
-<*.{byte,native}> : use_dynlink, use_camlp4_full
+<*.ml*> : syntax_camlp4o,pkg_camlp4.quotations.o,use_camlp4_full
+<pa_orpc_with.ml*> : pkg_type-conv
+<*.{byte,native}> : pkg_dynlink,use_camlp4_full

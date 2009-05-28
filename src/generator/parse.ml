@@ -23,6 +23,17 @@ open Ast
 open Types
 open Error
 
+let parse_ident id =
+  let ids = Ast.list_of_ident id [] in
+  match List.rev ids with
+    | <:ident< $lid:id$ >> :: uids ->
+      let mdl =
+        List.map
+          (function <:ident< $uid:uid$ >> -> uid | _ -> assert false)
+          (List.rev uids) in
+      (mdl, id)
+    | _ -> assert false
+
 let rec parse_type t =
   match t with
     | <:ctyp@loc< unit >> -> Unit loc
@@ -35,7 +46,10 @@ let rec parse_type t =
     | <:ctyp@loc< string >> -> String loc
 
     | <:ctyp@loc< '$v$ >> -> Var (loc, v)
-    | <:ctyp@loc< $lid:id$ >> -> Apply (loc, None, id, [])
+
+    | <:ctyp@loc< $id:id$ >> ->
+      let (mdl, id) = parse_ident id in
+      Apply (loc, mdl, id, [])
 
     (* I don't see how to do this one with quotations; $t1$ * $t2$
        gives both the TyTup and the TySta *)
@@ -76,8 +90,11 @@ let rec parse_type t =
         let rec apps args = function
             (* TyApp is used for both tupled and nested type application *)
           | <:ctyp< $t2$ $t1$ >> -> apps (parse_type t2 :: args) t1
-          | <:ctyp< $lid:id$ >> -> Apply (loc, None, id, args)
-          | <:ctyp< $uid:mname$.$lid:id$ >> -> Apply (loc, Some mname, id, args)
+
+          | <:ctyp< $id:id$ >> ->
+              let (mdl, id) = parse_ident id in
+              Apply (loc, mdl, id, args)
+
           | t -> ctyp_error t "expected TyApp or TyId" in
         apps [] t
 

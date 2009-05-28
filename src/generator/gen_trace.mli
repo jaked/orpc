@@ -18,5 +18,10 @@
  * 02111-1307, USA
  *)
 
-val gen_mli : string -> Types.interface -> Camlp4.PreCast.Ast.sig_item
-val gen_ml : string -> Types.interface -> Camlp4.PreCast.Ast.str_item
+open Camlp4.PreCast
+
+val gen_mli : string -> Types.interface -> Ast.sig_item
+val gen_ml : string -> Types.interface -> Ast.str_item
+
+val gen_sig_typedef : ?qual_id:(Types.ident -> Ast.ident) -> Types.typedef list -> Ast.sig_item
+val gen_str_typedef : ?qual_id:(Types.ident -> Ast.ident) -> ?rec_mod:bool -> bool -> Types.typedef list -> Ast.str_item

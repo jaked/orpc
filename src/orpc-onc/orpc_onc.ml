@@ -61,18 +61,18 @@ let of_option of'a v =
     | None -> Xdr.XV_union_over_enum_fast (0, Xdr.XV_void)
     | Some v -> Xdr.XV_union_over_enum_fast (1, of'a v)
 
-let to_orpc_result to'a to'b x =
+let orpc_aux_to_orpc_result to'a to'b x =
   match Xdr.dest_xv_union_over_enum_fast x with
     | (0, x) -> Orpc.Orpc_success (to'a x)
     | (1, x) -> Orpc.Orpc_failure (to'b x)
     | _ -> assert false
 
-let of_orpc_result of'a of'b x =
+let orpc_aux_of_orpc_result of'a of'b x =
   match x with
     | Orpc.Orpc_success x -> Xdr.XV_union_over_enum_fast (0, of'a x)
     | Orpc.Orpc_failure x -> Xdr.XV_union_over_enum_fast (1, of'b x)
 
-let xdr_orpc_result xdr'a xdr'b =
+let orpc_aux_xdr_orpc_result xdr'a xdr'b =
   Xdr.X_rec ("orpc_result",
             Xdr.X_union_over_enum
               (Xdr.X_enum [ ("Orpc_success", (Rtypes.int4_of_int 0));

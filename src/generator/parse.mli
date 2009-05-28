@@ -18,4 +18,8 @@
  * 02111-1307, USA
  *)
 
-val parse_interface : Camlp4.PreCast.Ast.sig_item -> Types.pre_interface
+open Camlp4.PreCast
+
+val parse_interface : Ast.sig_item -> Types.pre_interface
+
+val parse_typedef : Loc.t -> Ast.ctyp -> Types.typedefs

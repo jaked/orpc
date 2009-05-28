@@ -28,6 +28,8 @@ open Error
 let rec check_type ids vars btds t =
   let ct = check_type ids vars btds in
   match t with
+    | Abstract _ -> ()
+
     | Var (loc, v) ->
         if not (List.mem v vars)
         then loc_error loc "unbound type variable"
@@ -40,7 +42,9 @@ let rec check_type ids vars btds t =
 
     | Arrow (loc, _, _) -> loc_error loc "function type not supported"
 
-    | Apply (loc, Some _, _, _) -> loc_error loc "module-qualified type not allowed"
+    | Apply (loc, _ :: _, _, _) -> ()
+        (* we don't have type info, can't check. XXX maybe should just leave checking to compiler? *)
+
     | Apply (loc, _, id, args) ->
         try
           let vars = List.assoc id btds in
@@ -154,7 +158,7 @@ let get_module_type_funcs mts =
                 (fun (loc, id, args, lwt_ret) ->
                   let ret =
                     match lwt_ret with
-                      | Apply (_, Some "Lwt", "t", [ ret ]) -> ret
+                      | Apply (_, ["Lwt"], "t", [ ret ]) -> ret
                       | _ -> loc_error (loc_of_typ lwt_ret) "Lwt function must return Lwt.t" in
                   (loc, id, args, ret)) in
         List.map func funcs
@@ -189,7 +193,7 @@ let check_module_type_funcs funcs (_, kind, mt_funcs) =
           (fun (_, id, args, ret) (l_loc, l_id, l_args, l_ret) ->
             check_names l_loc id l_id;
             check_args l_loc args l_args;
-            check_ret (Apply (g, Some "Lwt", "t", [ ret ])) l_ret) in
+            check_ret (Apply (g, ["Lwt"], "t", [ ret ])) l_ret) in
 
   try List.iter2 func funcs mt_funcs
   with Invalid_argument _ -> interface_mismatch g "func counts"

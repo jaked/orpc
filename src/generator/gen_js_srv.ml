@@ -83,7 +83,7 @@ let gen_ml name (typedefs, excs, funcs, mode) =
               else body)
             (let (ps, _) = G.vars args in
              <:expr<
-               let ( $paCom_of_list ps$ ) = $id:to_arg id$ x0 in
+               let ( $tup:paCom_of_list ps$ ) = $id:to_arg id$ x0 in
                $G.args_apps <:expr< $lid:"proc_" ^ id$ >> args$
              >>)$)
     >> in
@@ -117,7 +117,7 @@ let gen_ml name (typedefs, excs, funcs, mode) =
         | [_] -> <:match_case< $id:qual_id id$ _ -> Orpc.Orpc_failure e >>
         | _ ->
             <:match_case<
-              $id:qual_id id$ ($paCom_of_list (List.map (fun _ -> <:patt< _ >>) ts)$) -> Orpc.Orpc_failure e
+              $G.papps <:patt< $id:qual_id id$ >> (List.map (fun _ -> <:patt< _ >>) ts)$ -> Orpc.Orpc_failure e
             >> in
     <:str_item<
       let pack_orpc_result f =

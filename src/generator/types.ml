@@ -23,6 +23,7 @@ open Camlp4.PreCast
 type ident = string
 
 type typ =
+    | Abstract of Loc.t
     | Var of Loc.t * ident
     | Unit of Loc.t
     | Int of Loc.t
@@ -39,7 +40,7 @@ type typ =
     | List of Loc.t * typ
     | Option of Loc.t * typ
     | Ref of Loc.t * typ
-    | Apply of Loc.t * ident option * ident * typ list
+    | Apply of Loc.t * ident list * ident * typ list
     | Arrow of Loc.t * typ * typ
 
 and field = {
@@ -78,6 +79,7 @@ type mode = Simple | Modules of interface_kind list
 type interface = typedefs list * exc list * func list * mode
 
 let loc_of_typ = function
+  | Abstract loc -> loc
   | Var (loc, _) -> loc
   | Unit loc -> loc
   | Int loc -> loc
@@ -101,6 +103,7 @@ let g = Loc.ghost
 
 (* Camlp4LocationStripper is suggestive but I can't figure out how to use it. *)
 let rec strip_locs_typ = function
+  | Abstract _ -> Abstract g
   | Var (_, id) -> Var (g, id)
   | Unit _ -> Unit g
   | Int _ -> Int g

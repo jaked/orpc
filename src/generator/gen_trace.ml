@@ -27,28 +27,28 @@ module G = Gen_common
 
 let _loc = Camlp4.PreCast.Loc.ghost
 
-let pp_ id = "pp_" ^ id
+let pp_ id = "orpc_trace_pp_" ^ id
 let pp_p id = "pp'" ^ id
+
+let gen_sig_typedef ?(qual_id=G.id) ds =
+  let is =
+    List.map
+      (fun { td_vars = vars; td_id = id } ->
+        let appd =
+          G.tapps <:ctyp< $id:qual_id id$ >> (List.map (fun v -> <:ctyp< '$lid:v$ >>) vars) in
+
+        <:sig_item<
+       val $lid:pp_ id$ :
+         $G.arrows
+         (List.map (fun v -> <:ctyp< Format.formatter -> '$lid:v$ -> unit >>) vars)
+         <:ctyp< Format.formatter -> $appd$ -> unit >>$
+         >>)
+      ds in
+  sgSem_of_list is
 
 let gen_module_type name (typedefs, _, funcs, mode) =
 
   let qual_id = G.qual_id_aux name mode in
-
-  let gen_typedef ds =
-    let is =
-      List.map
-        (fun { td_vars = vars; td_id = id } ->
-          let appd =
-            G.tapps <:ctyp< $id:qual_id id$ >> (List.map (fun v -> <:ctyp< '$lid:v$ >>) vars) in
-
-          <:sig_item<
-            val $lid:pp_ id$ :
-              $G.arrows
-                (List.map (fun v -> <:ctyp< Format.formatter -> '$lid:v$ -> unit >>) vars)
-                <:ctyp< Format.formatter -> $appd$ -> unit >>$
-          >>)
-        ds in
-    sgSem_of_list is in
 
   let gen_func  (_, id, args, res) =
     <:sig_item<
@@ -57,10 +57,10 @@ let gen_module_type name (typedefs, _, funcs, mode) =
     >> in
 
   <:sig_item<
-    $list:List.map gen_typedef typedefs$ ;;
+    $list:List.map (gen_sig_typedef ~qual_id) typedefs$ ;;
     $list:List.map gen_func funcs$ ;;
-    val pp_exn : Format.formatter -> exn -> unit;;
-    val pp_exn'reply : Format.formatter -> exn -> unit;;
+    val $lid:pp_ "exn"$ : Format.formatter -> exn -> unit;;
+    val $lid:pp_ "exn'reply"$ : Format.formatter -> exn -> unit;;
   >>
 
 let gen_mli name (typedefs, excs, funcs, mode) =
@@ -90,131 +90,140 @@ let gen_mli name (typedefs, excs, funcs, mode) =
     $list:modules$
   >>
 
+let rec gen_format qual_id rec_mod t =
+  let gen_format = gen_format qual_id rec_mod in
+  match t with
+    | Abstract _ -> assert false
+
+    | Var (_loc, id) -> <:expr< $lid:pp_p id$ >>
+
+    | Unit _loc -> <:expr< fun fmt _ -> Format.fprintf fmt "()" >>
+    | Int _loc -> <:expr< fun fmt v -> Format.fprintf fmt "%d" v >>
+    | Int32 _loc -> <:expr< fun fmt v -> Format.fprintf fmt "%ld" v >>
+    | Int64 _loc -> <:expr< fun fmt v -> Format.fprintf fmt "%Ld" v >>
+    | Float _loc -> <:expr< fun fmt v -> Format.fprintf fmt "%g" v >>
+    | Bool _loc -> <:expr< fun fmt v -> Format.fprintf fmt "%B" v >>
+    | Char _loc -> <:expr< fun fmt v -> Format.fprintf fmt "%C" v >>
+    | String _loc -> <:expr< fun fmt v -> Format.fprintf fmt "%S" v >>
+
+    | Tuple (_loc, parts) ->
+        let (pps, pes) = G.vars parts in
+        let spec =
+          String.concat "" [
+            "@[<hv 1>(";
+            String.concat ",@ " (List.map (fun _ -> "%a") parts);
+            ")@]";
+          ] in
+        <:expr<
+          fun fmt v ->
+            let ( $tup:paCom_of_list pps$ ) = v in
+            $G.apps
+              <:expr< Format.fprintf fmt $`str:spec$ >>
+              (List.fold_right2
+                  (fun t v l -> (gen_format t)::v::l)
+                  parts pes [])$
+        >>
+
+    | Record (_loc, fields) ->
+        let (fps, fes) = G.vars fields in
+        let spec =
+          String.concat "" [
+            "@[{@[<hv 2>@ ";
+            String.concat ";@ "
+              (List.map (fun f -> "@[<hov 2>" ^ f.f_id ^ "@ =@ %a@]") fields);
+            "@]@ }@]";
+          ] in
+        let rb f p = <:patt< $id:qual_id f.f_id$ = $p$ >> in
+        <:expr<
+          fun fmt v ->
+            let { $paSem_of_list (List.map2 rb fields fps)$ } = v in
+            $G.apps
+              <:expr< Format.fprintf fmt $`str:spec$ >>
+              (List.fold_right2
+                  (fun f v l -> (gen_format f.f_typ)::v::l)
+                  fields fes [])$
+        >>
+
+    | Variant (_loc, arms) ->
+        let mc (id, ts) =
+          match ts with
+            | [] ->
+                <:match_case<
+                  $id:qual_id id$ -> Format.fprintf fmt $`str:id$;
+                >>
+            | [t] ->
+                let spec = String.concat "" [ "@[<hv 1>("; id; "@ %a)@]"; ] in
+                <:match_case<
+                  $id:qual_id id$ x ->
+                    Format.fprintf fmt $`str:spec$
+                      $gen_format t$
+                      x
+                >>
+            | _ ->
+                let (pps, pes) = G.vars ts in
+                let spec =
+                  String.concat "" [
+                    "@[<hv 1>(";
+                    id;
+                    "@ @[<hv 1>(";
+                    String.concat ",@ " (List.map (fun _ -> "%a") ts);
+                    ")@])@]";
+                  ] in
+                <:match_case<
+                  $G.papps <:patt< $id:qual_id id$>> pps$ ->
+                    $G.apps
+                      <:expr< Format.fprintf fmt $`str:spec$ >>
+                      (List.fold_right2
+                          (fun t v l -> (gen_format t)::v::l)
+                          ts pes [])$
+                >> in
+        <:expr< fun fmt v -> match v with $list:List.map mc arms$ >>
+
+    | Array (_loc, t) -> <:expr< Orpc_pp.pp_array $gen_format t$ >>
+
+    | List (_loc, t) -> <:expr< Orpc_pp.pp_list $gen_format t$ >>
+
+    | Option (_loc, t) -> <:expr< Orpc_pp.pp_option $gen_format t$ >>
+
+    | Ref (_loc, t) -> <:expr< fun fmt v -> Format.fprintf fmt "@[<hv 1>(ref@ %a)@]" $gen_format t$ v >>
+
+    | Apply (_loc, mdl, id, args) ->
+        G.apps
+          (match mdl, rec_mod with
+            | [], true -> <:expr< P.$lid:pp_ id$ >>
+            | [], false -> <:expr< $lid:pp_ id$ >>
+            | _ -> <:expr< $id:G.module_id mdl (pp_ id)$ >>)
+          (List.map gen_format args)
+
+   | Arrow _ -> assert false
+
+let gen_str_typedef ?(qual_id=G.id) ?(rec_mod=true) stub ds =
+  let es =
+    List.map
+      (fun { td_vars = vars; td_id = id; td_typ = t } ->
+        <:binding<
+          $lid:pp_ id$ =
+          $G.funs_ids
+            (List.map pp_p vars)
+            (if stub then <:expr< assert false >> else gen_format qual_id rec_mod t)$
+          >>)
+      ds in
+  <:str_item< let $list:es$ >>
+
 let gen_ml name (typedefs, excs, funcs, mode) =
 
   let qual_id = G.qual_id_aux name mode in
 
-  let rec gen_format t =
-    match t with
-      | Var (_, id) -> <:expr< $lid:pp_p id$ >>
-      | Unit _ -> <:expr< fun fmt _ -> Format.fprintf fmt "()" >>
-      | Int _ -> <:expr< fun fmt v -> Format.fprintf fmt "%d" v >>
-      | Int32 _ -> <:expr< fun fmt v -> Format.fprintf fmt "%ld" v >>
-      | Int64 _ -> <:expr< fun fmt v -> Format.fprintf fmt "%Ld" v >>
-      | Float _ -> <:expr< fun fmt v -> Format.fprintf fmt "%g" v >>
-      | Bool _ -> <:expr< fun fmt v -> Format.fprintf fmt "%B" v >>
-      | Char _ -> <:expr< fun fmt v -> Format.fprintf fmt "%C" v >>
-      | String _ -> <:expr< fun fmt v -> Format.fprintf fmt "%S" v >>
-
-      | Tuple (_, parts) ->
-          let (pps, pes) = G.vars parts in
-          let spec =
-            String.concat "" [
-              "@[<hv 1>(";
-              String.concat ",@ " (List.map (fun _ -> "%a") parts);
-              ")@]";
-            ] in
-          <:expr<
-            fun fmt v ->
-              let ( $paCom_of_list pps$ ) = v in
-              $G.apps
-                <:expr< Format.fprintf fmt $`str:spec$ >>
-                (List.fold_right2
-                    (fun t v l -> (gen_format t)::v::l)
-                    parts pes [])$
-          >>
-
-      | Record (_, fields) ->
-          let (fps, fes) = G.vars fields in
-          let spec =
-            String.concat "" [
-              "@[{@[<hv 2>@ ";
-              String.concat ";@ "
-                (List.map (fun f -> "@[<hov 2>" ^ f.f_id ^ "@ =@ %a@]") fields);
-              "@]@ }@]";
-            ] in
-          let rb f p = <:patt< $id:qual_id f.f_id$ = $p$ >> in
-          <:expr<
-            fun fmt v ->
-              let { $paSem_of_list (List.map2 rb fields fps)$ } = v in
-              $G.apps
-                <:expr< Format.fprintf fmt $`str:spec$ >>
-                (List.fold_right2
-                    (fun f v l -> (gen_format f.f_typ)::v::l)
-                    fields fes [])$
-          >>
-
-      | Variant (_, arms) ->
-          let mc (id, ts) =
-            match ts with
-              | [] ->
-                  <:match_case<
-                    $id:qual_id id$ -> Format.fprintf fmt $`str:id$;
-                  >>
-              | [t] ->
-                  let spec = String.concat "" [ "@[<hv 1>("; id; "@ %a)@]"; ] in
-                  <:match_case<
-                    $id:qual_id id$ x ->
-                      Format.fprintf fmt $`str:spec$
-                        $gen_format t$
-                        x
-                  >>
-              | _ ->
-                  let (pps, pes) = G.vars ts in
-                  let spec =
-                    String.concat "" [
-                      "@[<hv 1>(";
-                      id;
-                      "@ @[<hv 1>(";
-                      String.concat ",@ " (List.map (fun _ -> "%a") ts);
-                      ")@])@]";
-                    ] in
-                  <:match_case<
-                    $id:qual_id id$ ( $paCom_of_list pps$ ) ->
-                      $G.apps
-                        <:expr< Format.fprintf fmt $`str:spec$ >>
-                        (List.fold_right2
-                            (fun t v l -> (gen_format t)::v::l)
-                            ts pes [])$
-                  >> in
-          <:expr< fun fmt v -> match v with $list:List.map mc arms$ >>
-
-      | Array (_, t) -> <:expr< Orpc_pp.pp_array $gen_format t$ >>
-
-      | List (_, t) -> <:expr< Orpc_pp.pp_list $gen_format t$ >>
-
-      | Option (_, t) -> <:expr< Orpc_pp.pp_option $gen_format t$ >>
-
-      | Ref (_, t) -> <:expr< fun fmt v -> Format.fprintf fmt "@[<hv 1>(ref@ %a)@]" $gen_format t$ v >>
-
-      | Apply (_, _, id, args) ->
-          G.apps
-            <:expr< P.$lid:pp_ id$ >>
-            (List.map gen_format args)
-
-     | Arrow _ -> assert false in
-
   let gen_pp_exc t =
-    match gen_format t with
+    match gen_format qual_id true t with
       | <:expr< fun fmt v -> $ExMat (loc, e, cases)$ >> ->
           <:expr<
             fun fmt v ->
-              $ExMat (loc, e, McOr(g, cases, <:match_case< _ -> Format.fprintf fmt "<exn>" >>))$
+              match $e$ with
+                  $cases$
+                | _ -> Format.fprintf fmt "<exn>"
           >>
       | _ -> assert false in
-
-  let gen_typedef ds =
-    let es =
-      List.map
-        (fun { td_vars = vars; td_id = id; td_typ = t } ->
-          <:binding<
-            $lid:pp_ id$ =
-            $G.funs_ids
-              (List.map pp_p vars)
-              (gen_format t)$
-          >>)
-        ds in
-    <:str_item< let $list:es$ >> in
 
   let gen_func (_, id, args, res) =
     let (_, es) = G.vars args in
@@ -239,12 +248,12 @@ let gen_ml name (typedefs, excs, funcs, mode) =
             $G.apps
               <:expr< Format.fprintf fmt $`str:spec$ >>
               (List.fold_right2
-                  (fun t v l -> (gen_format (typ_of_argtyp_option t))::v::l)
+                  (fun t v l -> (gen_format qual_id true (typ_of_argtyp_option t))::v::l)
                   args es [])$
           >>$
       let $lid:pp_ id ^ "'reply"$ fmt res =
         Format.fprintf fmt "@[<hv 2><==@ %a@]@."
-          $gen_format res$
+          $gen_format qual_id true res$
           res
     >> in
 
@@ -256,7 +265,7 @@ let gen_ml name (typedefs, excs, funcs, mode) =
       let trace_reply_ok =
         <:expr< T.trace_reply_ok t (fun fmt -> P.$lid:pp_ id ^ "'reply"$ fmt r) >> in
       let trace_reply_exn =
-        <:expr< T.trace_reply_exn t e (fun fmt -> P.pp_exn'reply fmt e) >> in
+        <:expr< T.trace_reply_exn t e (fun fmt -> P.$lid:pp_ "exn'reply"$ fmt e) >> in
 
       <:str_item<
         let $lid:id$ =
@@ -316,14 +325,14 @@ let gen_ml name (typedefs, excs, funcs, mode) =
 
     module Pp_pp (P : Pp) : Pp =
     struct
-      let pp_exn =
+      let $lid:pp_ "exn"$ =
         $gen_pp_exc
           (Variant (g, List.map (fun (_, id, ts) -> (id, ts)) excs))$ ;;
 
-      let pp_exn'reply fmt exn =
-        Format.fprintf fmt "@[<hv 2><=!@ %a@]@." P.pp_exn exn ;;
+      let $lid:pp_ "exn'reply"$ fmt exn =
+        Format.fprintf fmt "@[<hv 2><=!@ %a@]@." P.$lid:pp_ "exn"$ exn ;;
 
-      $list:List.map gen_typedef typedefs$;;
+      $list:List.map (gen_str_typedef ~qual_id false) typedefs$;;
 
       $list:List.map gen_func funcs$;;
     end
