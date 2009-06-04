@@ -88,9 +88,9 @@ let rec parse_type t =
               let rec parts = function
                 | <:ctyp< $t1$ and $t2$ >> -> parts t1 @ parts t2
                 | t -> [ parse_type t ] in
-              [ id, parts t ]
-          | <:ctyp< `$id$ >> -> [ id, [] ]
-          | t -> ctyp_error t "expected TyOr, TyOf, or TyId" in
+              [ Pv_of (id, parts t) ]
+          | <:ctyp< `$id$ >> -> [ Pv_of (id, []) ]
+          | t -> [ Pv_pv (parse_type t) ] in
         PolyVar (loc, arms ams)
 
     | <:ctyp@loc< $t$ array >> -> Array (loc, parse_type t)

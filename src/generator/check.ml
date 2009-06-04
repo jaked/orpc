@@ -38,32 +38,57 @@ let rec check_type ids vars btds t =
     | Tuple (_, parts) -> List.iter ct parts
     | Record (_, fields) -> List.iter (fun f -> ct f.f_typ) fields
     | Variant (_, arms) -> List.iter (fun (_, ts) -> List.iter ct ts) arms
-    | PolyVar (_, arms) -> List.iter (fun (_, ts) -> List.iter ct ts) arms
+
+    | PolyVar (_, arms) ->
+        List.iter
+          (function
+            | Pv_of (_, ts) -> List.iter ct ts
+            | Pv_pv (Apply (loc, [], id, args)) ->
+                if List.mem_assoc id btds
+                then loc_error loc "type constructor is not yet completely defined"
+                else begin
+                  try
+                    let (len, polyvar) = List.assoc id ids in
+                    if not polyvar then loc_error loc "not a polymorphic variant"
+                    else if len <> List.length args then loc_error loc "type constructor applied with wrong arity"
+                    else List.iter ct args
+                  with Not_found -> loc_error loc "unbound type constructor"
+                end
+            | Pv_pv (Apply (loc, _, _, _)) ->
+                (* to marshal we need to know all the arms *)
+                loc_error loc "external polymorphic variant not supported"
+            | Pv_pv (PolyVar _ as t) -> ct t
+            | Pv_pv t -> loc_error (loc_of_typ t) "not a polymorphic variant")
+          arms
+
     | Array (_, t) | List (_, t) | Option (_, t) -> ct t | Ref (_, t) -> ct t
 
     | Arrow (loc, _, _) -> loc_error loc "function type not supported"
 
-    | Apply (loc, _ :: _, _, _) -> ()
-        (* we don't have type info, can't check. XXX maybe should just leave checking to compiler? *)
-
-    | Apply (loc, _, id, args) ->
-        try
-          let vars = List.assoc id btds in
-          List.iter2
-            (fun a v ->
-              match a with
-                | Var (loc, v') ->
-                    if v <> v'
-                    then loc_error loc "type constructor must be applied with same arguments as definition"
-                | _ ->
-                    loc_error (loc_of_typ a) "type constructor must be applied with same arguments as definition")
-            args vars
-        with Not_found ->
+    | Apply (loc, [], id, args) ->
+        begin
           try
-            if List.assoc id ids <> List.length args
-            then loc_error loc "type constructor applied with wrong arity"
-            else List.iter ct args
-          with Not_found -> loc_error loc "unbound type constructor"
+            let vars = List.assoc id btds in
+            List.iter2
+              (fun a v ->
+                match a with
+                  | Var (loc, v') ->
+                      if v <> v'
+                      then loc_error loc "type constructor must be applied with same arguments as definition"
+                  | _ ->
+                    loc_error (loc_of_typ a) "type constructor must be applied with same arguments as definition")
+              args vars
+          with Not_found ->
+            try
+              let (len, _) = List.assoc id ids in
+              if len <> List.length args
+              then loc_error loc "type constructor applied with wrong arity"
+              else List.iter ct args
+            with Not_found -> loc_error loc "unbound type constructor"
+        end
+
+    | Apply (loc, _, _, _) -> ()
+        (* we don't have type info, can't check. XXX maybe should just leave checking to compiler? *)
 
 let check_typedef ids btds { td_loc = loc; td_vars = vars; td_typ = t } =
   ignore
@@ -80,16 +105,17 @@ let check_typedefs ids tds =
     (fun ids ds ->
       let ids, btds =
         List.fold_left
-          (fun (ids, btds) { td_loc = loc; td_vars = vars; td_id = id } ->
+          (fun (ids, btds) { td_loc = loc; td_vars = vars; td_id = id; td_typ = t } ->
             if List.mem_assoc id ids
             then loc_error loc "type constructor already defined"
             else
-              (id, List.length vars) :: ids, (id, vars) :: btds)
-              (ids, []) ds in
+              let polyvar = match t with PolyVar _ -> true | _ -> false in
+              (id, (List.length vars, polyvar)) :: ids, (id, vars) :: btds)
+          (ids, []) ds in
       List.iter (check_typedef ids btds) ds;
       ids)
     (List.map
-        (fun t -> (t, 0))
+        (fun t -> (t, (0,false)))
         ["unit"; "int"; "int32"; "int64"; "float"; "bool"; "char"; "string"; "array"; "list"; "option"; "exn"])
     tds
 
@@ -199,6 +225,69 @@ let check_module_type_funcs funcs (_, kind, mt_funcs) =
   try List.iter2 func funcs mt_funcs
   with Invalid_argument _ -> interface_mismatch g "func counts"
 
+let rec expand_polyvar typedefs vs t =
+  let ep = expand_polyvar typedefs vs in
+
+  match t with
+    | Var (_, id) as v ->
+        begin
+          try List.assoc id vs
+          with Not_found -> v
+        end
+
+    | Unit _ | Int _ | Int32 _ | Int64 _ | Float _ | Bool _ | Char _ | String _ -> t
+    | Tuple (_loc, parts) -> Tuple (_loc, List.map ep parts)
+    | Record (_loc, fields) -> Record (_loc, List.map (fun f -> { f with f_typ = ep f.f_typ }) fields)
+    | Variant (_loc, arms) -> Variant (_loc, List.map (fun (id, ts) -> (id, List.map ep ts)) arms)
+
+    | PolyVar (_loc, arms) ->
+        let arms =
+          List.fold_right
+            (expand_polyvar_arm typedefs vs)
+            arms
+            [] in
+        PolyVar (_loc, arms)
+
+    | Array (_loc, t) -> Array (_loc, ep t)
+    | List (_loc, t) -> List (_loc, ep t)
+    | Option (_loc, t) -> Option (_loc, ep t)
+    | Ref (_loc, t) -> Ref (_loc, ep t)
+
+    | Apply (_loc, mdl, id, args) -> Apply (_loc, mdl, id, List.map ep args)
+
+    | _ -> assert false
+
+and expand_polyvar_arm typedefs vs arm arms =
+  let ep = expand_polyvar typedefs vs in
+
+  match arm with
+    | Pv_of (id, ts) -> Pv_of (id, List.map ep ts) :: arms
+    | Pv_pv (PolyVar (_, arms')) ->
+        List.fold_right
+          (expand_polyvar_arm typedefs vs)
+          arms'
+          arms
+    | Pv_pv (Apply (_, _, id, args)) ->
+        let rec find2 f = function
+          | [] -> raise Not_found
+          | h::t ->
+              try List.find f h
+              with Not_found -> find2 f t in
+        let { td_vars = vars; td_typ = t } = find2 (fun { td_id = id' } -> id' = id) typedefs in
+        begin match t with
+          | PolyVar _ ->
+              let vs = List.combine vars (List.map ep args) in
+              expand_polyvar_arm typedefs vs (Pv_pv t) arms
+          | _ -> assert false
+        end
+    | _ -> assert false
+
+let expand_polyvars_typedef typedefs td =
+  { td with td_typ = expand_polyvar typedefs [] td.td_typ }
+
+let expand_polyvars_exc typedefs (_loc, id, ts) =
+  (_loc, id, List.map (expand_polyvar typedefs []) ts)
+
 let check_interface (typedefs, excs, funcs, mts) =
   let funcs =
     match funcs with
@@ -216,5 +305,8 @@ let check_interface (typedefs, excs, funcs, mts) =
       | _ ->
           List.iter (check_module_type_funcs funcs) mts;
           Modules (List.map (fun (_, kind, _) -> kind) mts) in
+
+  let typedefs = List.map (List.map (expand_polyvars_typedef typedefs)) typedefs in
+  let excs = List.map (expand_polyvars_exc typedefs) excs in
 
   (typedefs, excs, funcs, mode)
