@@ -36,6 +36,7 @@ type typ =
     | Tuple of Loc.t * typ list
     | Record of Loc.t * field list
     | Variant of Loc.t * (ident * (typ list)) list
+    | PolyVar of Loc.t * (ident * (typ list)) list
     | Array of Loc.t * typ
     | List of Loc.t * typ
     | Option of Loc.t * typ
@@ -92,6 +93,7 @@ let loc_of_typ = function
   | Tuple (loc, _) -> loc
   | Record (loc, _) -> loc
   | Variant (loc, _) -> loc
+  | PolyVar (loc, _) -> loc
   | Array (loc, _) -> loc
   | List (loc, _) -> loc
   | Option (loc, _) -> loc
@@ -116,6 +118,7 @@ let rec strip_locs_typ = function
   | Tuple (_, parts) -> Tuple (g, List.map strip_locs_typ parts)
   | Record (_, fields) -> Record (g, List.map (fun f -> { f with f_typ = strip_locs_typ f.f_typ }) fields)
   | Variant (_, arms) -> Variant (g, List.map (fun (id,ts) -> (id, List.map strip_locs_typ ts)) arms)
+  | PolyVar (_, arms) -> PolyVar (g, List.map (fun (id,ts) -> (id, List.map strip_locs_typ ts)) arms)
   | Array (_, t) -> Array (g, strip_locs_typ t)
   | List (_, t) -> List (g, strip_locs_typ t)
   | Option (_, t) -> Option (g, strip_locs_typ t)

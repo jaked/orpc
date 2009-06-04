@@ -173,6 +173,17 @@ let gen_type qual_id t =
           arms in
         TySum (_loc, tyOr_of_list arms)
 
+    | PolyVar (_, arms) ->
+        let arms =
+          List.map
+            (fun (id, ts) ->
+              let parts = List.map gt ts in
+              match parts with
+                | [] -> <:ctyp< `$uid:id$ >>
+                | _ -> <:ctyp< `$uid:id$ of $tyAnd_of_list parts$ >>)
+          arms in
+        TyVrnEq (_loc, tyOr_of_list arms)
+
     | Array (_, t) -> <:ctyp< $gt t$ array >>
     | List (_, t) -> <:ctyp< $gt t$ list >>
     | Option (_, t) -> <:ctyp< $gt t$ option >>

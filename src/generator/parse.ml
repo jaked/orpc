@@ -81,6 +81,18 @@ let rec parse_type t =
           | t -> ctyp_error t "expected TyOr, TyOf, or TyId" in
         Variant (loc, arms ams)
 
+    | TyVrnEq (loc, ams) ->
+        let rec arms = function
+          | <:ctyp< $t1$ | $t2$ >> -> arms t1 @ arms t2
+          | <:ctyp< `$id$ of $t$ >> ->
+              let rec parts = function
+                | <:ctyp< $t1$ and $t2$ >> -> parts t1 @ parts t2
+                | t -> [ parse_type t ] in
+              [ id, parts t ]
+          | <:ctyp< `$id$ >> -> [ id, [] ]
+          | t -> ctyp_error t "expected TyOr, TyOf, or TyId" in
+        PolyVar (loc, arms ams)
+
     | <:ctyp@loc< $t$ array >> -> Array (loc, parse_type t)
     | <:ctyp@loc< $t$ list >> -> List (loc, parse_type t)
     | <:ctyp@loc< $t$ option >> -> Option (loc, parse_type t)

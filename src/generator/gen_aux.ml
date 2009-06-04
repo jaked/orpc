@@ -191,6 +191,28 @@ let rec gen_to qual_id t x =
              | _ -> assert false
          >>
 
+     | PolyVar (_loc, arms) ->
+         let mc (id, ts) i =
+           match ts with
+             | [] -> <:match_case< ($`int:i$, _) -> `$id$ >>
+             | [t] -> <:match_case< ($`int:i$, x) -> `$id$ $gen_to t <:expr< x >>$ >>
+             | _ ->
+                 let (pps, pes) = G.vars ts in
+                 <:match_case<
+                   ($`int:i$, x) ->
+                     match Xdr.dest_xv_struct_fast x with
+                       | [| $list:pps$ |] ->
+                           $G.apps
+                             <:expr< `$id$ >>
+                             (List.map2 gen_to ts pes)$
+                       | _ -> assert false
+                 >> in
+         <:expr<
+           match Xdr.dest_xv_union_over_enum_fast $x$ with
+               $list:List.mapi mc arms$
+             | _ -> assert false
+         >>
+
      | Array (_loc, t) ->
          <:expr< Array.map (fun x -> $gen_to t <:expr< x >>$) (Xdr.dest_xv_array $x$) >>
 
@@ -261,6 +283,29 @@ let rec gen_of qual_id t v =
                  let (pps, pes) = G.vars ts in
                  <:match_case<
                    $G.papps <:patt< $id:qual_id id$ >> pps$ ->
+                     Xdr.XV_union_over_enum_fast
+                       ($`int:i$,
+                       Xdr.XV_struct_fast [| $exSem_of_list (List.map2 gen_of ts pes)$ |])
+                 >> in
+         <:expr< match $v$ with $list:List.mapi mc arms$ >>
+
+     | PolyVar (_loc, arms) ->
+         let mc (id, ts) i =
+           match ts with
+             | [] ->
+                 <:match_case<
+                   `$id$ ->
+                     Xdr.XV_union_over_enum_fast ($`int:i$, Xdr.XV_void)
+                 >>
+             | [t] ->
+                 <:match_case<
+                   `$id$ x ->
+                     Xdr.XV_union_over_enum_fast ($`int:i$, $gen_of t <:expr< x >>$)
+                 >>
+             | _ ->
+                 let (pps, pes) = G.vars ts in
+                 <:match_case<
+                   $G.papps <:patt< `$id$ >> pps$ ->
                      Xdr.XV_union_over_enum_fast
                        ($`int:i$,
                        Xdr.XV_struct_fast [| $exSem_of_list (List.map2 gen_of ts pes)$ |])
@@ -347,6 +392,22 @@ let rec gen_xdr qual_id vs bs ds t =
         <:expr< Xdr.X_struct $exList_of_list (List.map fx fields)$ >>
 
     | Variant (_loc, arms) ->
+        let tag (id, _) i = <:expr< ( $`str:id$, Rtypes.int4_of_int $`int:i$ ) >> in
+        let ax (id, ts) =
+          match ts with
+            | [] -> <:expr< ( $`str:id$, Xdr.X_void ) >>
+            | [t] -> <:expr< ( $`str:id$,  $gen_xdr t$ ) >>
+            | _ ->
+                let px t i = <:expr< ( $`str:string_of_int i$, $gen_xdr t$ ) >> in
+                <:expr< ( $`str:id$, Xdr.X_struct $exList_of_list (List.mapi px ts)$) >> in
+        <:expr<
+          Xdr.X_union_over_enum
+            (Xdr.X_enum $exList_of_list (List.mapi tag arms)$,
+            $exList_of_list (List.map ax arms)$,
+            None)
+        >>
+
+    | PolyVar (_loc, arms) ->
         let tag (id, _) i = <:expr< ( $`str:id$, Rtypes.int4_of_int $`int:i$ ) >> in
         let ax (id, ts) =
           match ts with

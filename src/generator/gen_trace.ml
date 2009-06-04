@@ -179,6 +179,41 @@ let rec gen_format qual_id rec_mod t =
                 >> in
         <:expr< fun fmt v -> match v with $list:List.map mc arms$ >>
 
+    | PolyVar (_loc, arms) ->
+        let mc (id, ts) =
+          match ts with
+            | [] ->
+                <:match_case<
+                  `$id$ -> Format.fprintf fmt $`str:"`"^id$;
+                >>
+            | [t] ->
+                let spec = String.concat "" [ "@[<hv 1>(`"; id; "@ %a)@]"; ] in
+                <:match_case<
+                  `$id$ x ->
+                    Format.fprintf fmt $`str:spec$
+                      $gen_format t$
+                      x
+                >>
+            | _ ->
+                let (pps, pes) = G.vars ts in
+                let spec =
+                  String.concat "" [
+                    "@[<hv 1>(`";
+                    id;
+                    "@ @[<hv 1>(";
+                    String.concat ",@ " (List.map (fun _ -> "%a") ts);
+                    ")@])@]";
+                  ] in
+                <:match_case<
+                  $G.papps <:patt< `$id$>> pps$ ->
+                    $G.apps
+                      <:expr< Format.fprintf fmt $`str:spec$ >>
+                      (List.fold_right2
+                          (fun t v l -> (gen_format t)::v::l)
+                          ts pes [])$
+                >> in
+        <:expr< fun fmt v -> match v with $list:List.map mc arms$ >>
+
     | Array (_loc, t) -> <:expr< Orpc_pp.pp_array $gen_format t$ >>
 
     | List (_loc, t) -> <:expr< Orpc_pp.pp_list $gen_format t$ >>

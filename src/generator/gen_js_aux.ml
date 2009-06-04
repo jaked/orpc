@@ -173,6 +173,41 @@ let rec gen_to qual_id t x =
              | _ -> raise (Invalid_argument "variant")
          >>
 
+     | PolyVar (_loc, arms) ->
+         let mc (id, ts) i =
+           match ts with
+             | [] ->
+                 <:match_case< Orpc_js_server.Oint $`int:i$ -> `$id$ >>
+             | [t] ->
+                 <:match_case< Orpc_js_server.Oblock ($`int:i$, [| x |]) -> `$id$ $gen_to t <:expr< x >>$ >>
+             | _ ->
+                 let (pps, pes) = G.vars ts in
+                 <:match_case<
+                   Orpc_js_server.Oblock ($`int:i$, [| $list:pps$ |]) ->
+                     $List.fold_left
+                       (fun ps p -> <:expr< $ps$ $p$ >>)
+                       <:expr< `$id$ >>
+                       (List.map2 gen_to ts pes)$
+                 >> in
+         <:expr<
+           match $x$ with
+             | Orpc_js_server.Oint _ ->
+                 (match $x$ with
+                     $list:
+                       List.mapi
+                         mc
+                         (List.filter (fun (_, ts) -> ts = []) arms)$
+                   | _ -> raise (Invalid_argument "variant"))
+             | Orpc_js_server.Oblock _ ->
+                 (match $x$ with
+                     $list:
+                       List.mapi
+                         mc
+                         (List.filter (fun (_, ts) -> ts <> []) arms)$
+                   | _ -> raise (Invalid_argument "variant"))
+             | _ -> raise (Invalid_argument "variant")
+         >>
+
      | Array (_loc, t) ->
          <:expr< Array.map (fun x -> $gen_to t <:expr< x >>$) $x$ >>
 

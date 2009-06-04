@@ -38,6 +38,7 @@ let rec check_type ids vars btds t =
     | Tuple (_, parts) -> List.iter ct parts
     | Record (_, fields) -> List.iter (fun f -> ct f.f_typ) fields
     | Variant (_, arms) -> List.iter (fun (_, ts) -> List.iter ct ts) arms
+    | PolyVar (_, arms) -> List.iter (fun (_, ts) -> List.iter ct ts) arms
     | Array (_, t) | List (_, t) | Option (_, t) -> ct t | Ref (_, t) -> ct t
 
     | Arrow (loc, _, _) -> loc_error loc "function type not supported"
