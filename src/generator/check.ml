@@ -146,8 +146,8 @@ let check_excs ids excs =
 
 let check_function ids loc id args res =
   let args = List.map typ_of_argtyp args in
-  List.iter (check_type ~inf_ok:true ids [] []) args;
-  check_type ~sup_ok:true ids [] [] res
+  List.iter (check_type (*~inf_ok:true*) ids [] []) args;
+  check_type (*~sup_ok:true*) ids [] [] res
 
 let check_funcs ids fids funcs =
        ignore
