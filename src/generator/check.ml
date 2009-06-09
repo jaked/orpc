@@ -225,8 +225,8 @@ let check_module_type_funcs funcs (_, kind, mt_funcs) =
   try List.iter2 func funcs mt_funcs
   with Invalid_argument _ -> interface_mismatch g "func counts"
 
-let rec expand_polyvar typedefs vs t =
-  let ep = expand_polyvar typedefs vs in
+let rec expand_polyvars typedefs vs t =
+  let ep = expand_polyvars typedefs vs in
 
   match t with
     | Var (_, id) as v ->
@@ -243,7 +243,7 @@ let rec expand_polyvar typedefs vs t =
     | PolyVar (_loc, arms) ->
         let arms =
           List.fold_right
-            (expand_polyvar_arm typedefs vs)
+            (expand_polyvars_arm typedefs vs)
             arms
             [] in
         PolyVar (_loc, arms)
@@ -257,14 +257,14 @@ let rec expand_polyvar typedefs vs t =
 
     | _ -> assert false
 
-and expand_polyvar_arm typedefs vs arm arms =
-  let ep = expand_polyvar typedefs vs in
+and expand_polyvars_arm typedefs vs arm arms =
+  let ep = expand_polyvars typedefs vs in
 
   match arm with
     | Pv_of (id, ts) -> Pv_of (id, List.map ep ts) :: arms
     | Pv_pv (PolyVar (_, arms')) ->
         List.fold_right
-          (expand_polyvar_arm typedefs vs)
+          (expand_polyvars_arm typedefs vs)
           arms'
           arms
     | Pv_pv (Apply (_, _, id, args)) ->
@@ -277,16 +277,27 @@ and expand_polyvar_arm typedefs vs arm arms =
         begin match t with
           | PolyVar _ ->
               let vs = List.combine vars (List.map ep args) in
-              expand_polyvar_arm typedefs vs (Pv_pv t) arms
+              expand_polyvars_arm typedefs vs (Pv_pv t) arms
           | _ -> assert false
         end
     | _ -> assert false
 
 let expand_polyvars_typedef typedefs td =
-  { td with td_typ = expand_polyvar typedefs [] td.td_typ }
+  { td with td_typ = expand_polyvars typedefs [] td.td_typ }
 
 let expand_polyvars_exc typedefs (_loc, id, ts) =
-  (_loc, id, List.map (expand_polyvar typedefs []) ts)
+  (_loc, id, List.map (expand_polyvars typedefs []) ts)
+
+let expand_polyvars_func typedefs (_loc, id, args, ret) =
+  let ep = expand_polyvars typedefs [] in
+  (_loc, id,
+  List.map
+    (function
+      | Unlabelled (_loc, t) -> Unlabelled (_loc, ep t)
+      | Labelled (_loc, id, t) -> Labelled (_loc, id, ep t)
+      | Optional (_loc, id, t) -> Optional (_loc, id, ep t))
+    args,
+  ep ret)
 
 let check_interface (typedefs, excs, funcs, mts) =
   let funcs =
@@ -308,5 +319,6 @@ let check_interface (typedefs, excs, funcs, mts) =
 
   let typedefs = List.map (List.map (expand_polyvars_typedef typedefs)) typedefs in
   let excs = List.map (expand_polyvars_exc typedefs) excs in
+  let funcs = List.map (expand_polyvars_func typedefs) funcs in
 
   (typedefs, excs, funcs, mode)
