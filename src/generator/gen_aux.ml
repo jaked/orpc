@@ -191,7 +191,7 @@ let rec gen_to qual_id t x =
             | _ -> assert false
         >>
 
-    | PolyVar (_loc, arms) ->
+    | PolyVar (_loc, _, arms) ->
         let arms = List.map (function Pv_pv _ -> assert false | Pv_of (id, ts) -> (id, ts)) arms in
         let mc (id, ts) i =
           match ts with
@@ -290,7 +290,7 @@ let rec gen_of qual_id t v =
                 >> in
         <:expr< match $v$ with $list:List.mapi mc arms$ >>
 
-    | PolyVar (_loc, arms) ->
+    | PolyVar (_loc, _, arms) ->
         let arms = List.map (function Pv_pv _ -> assert false | Pv_of (id, ts) -> (id, ts)) arms in
         let mc (id, ts) i =
           match ts with
@@ -409,7 +409,7 @@ let rec gen_xdr qual_id vs bs ds t =
             None)
         >>
 
-    | PolyVar (_loc, arms) ->
+    | PolyVar (_loc, _, arms) ->
         let arms = List.map (function Pv_pv _ -> assert false | Pv_of (id, ts) -> (id, ts)) arms in
         let tag (id, _) i = <:expr< ( $`str:id$, Rtypes.int4_of_int $`int:i$ ) >> in
         let ax (id, ts) =

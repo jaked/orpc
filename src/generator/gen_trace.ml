@@ -179,7 +179,7 @@ let rec gen_format qual_id rec_mod t =
                 >> in
         <:expr< fun fmt v -> match v with $list:List.map mc arms$ >>
 
-    | PolyVar (_loc, arms) ->
+    | PolyVar (_loc, _, arms) ->
         let arms = List.map (function Pv_pv _ -> assert false | Pv_of (id, ts) -> (id, ts)) arms in
         let mc (id, ts) =
           match ts with

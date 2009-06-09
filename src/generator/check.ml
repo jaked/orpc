@@ -25,7 +25,7 @@ open Error
 (* XXX check for reserved words in type and value names and argument labels? *)
 (* XXX check variant tags are not reused *)
 
-let rec check_type ids vars btds t =
+let rec check_type ?(inf_ok=false) ?(sup_ok=false) ids vars btds t =
   let ct = check_type ids vars btds in
   match t with
     | Abstract _ -> ()
@@ -39,7 +39,12 @@ let rec check_type ids vars btds t =
     | Record (_, fields) -> List.iter (fun f -> ct f.f_typ) fields
     | Variant (_, arms) -> List.iter (fun (_, ts) -> List.iter ct ts) arms
 
-    | PolyVar (_, arms) ->
+    | PolyVar (loc, kind, arms) ->
+        begin match kind, inf_ok, sup_ok with
+          | Pv_inf, false, _ -> loc_error loc "infinum not allowed here"
+          | Pv_sup, _, false -> loc_error loc "supremum not allowed here"
+          | _ -> ()
+        end;
         List.iter
           (function
             | Pv_of (_, ts) -> List.iter ct ts
@@ -49,9 +54,14 @@ let rec check_type ids vars btds t =
                 else begin
                   try
                     let (len, polyvar) = List.assoc id ids in
-                    if not polyvar then loc_error loc "not a polymorphic variant"
-                    else if len <> List.length args then loc_error loc "type constructor applied with wrong arity"
-                    else List.iter ct args
+                    begin match polyvar with
+                      | None -> loc_error loc "not a polymorphic variant"
+                      | Some Pv_inf -> loc_error loc "infinum not allowed here"
+                      | Some Pv_sup -> loc_error loc "supremum not allowed here"
+                      | _ -> ()
+                    end;
+                    if len <> List.length args then loc_error loc "type constructor applied with wrong arity";
+                    List.iter ct args
                   with Not_found -> loc_error loc "unbound type constructor"
                 end
             | Pv_pv (Apply (loc, _, _, _)) ->
@@ -109,13 +119,13 @@ let check_typedefs ids tds =
             if List.mem_assoc id ids
             then loc_error loc "type constructor already defined"
             else
-              let polyvar = match t with PolyVar _ -> true | _ -> false in
+              let polyvar = match t with PolyVar (_, kind, _) -> Some kind | _ -> None in
               (id, (List.length vars, polyvar)) :: ids, (id, vars) :: btds)
           (ids, []) ds in
       List.iter (check_typedef ids btds) ds;
       ids)
     (List.map
-        (fun t -> (t, (0,false)))
+        (fun t -> (t, (0,None)))
         ["unit"; "int"; "int32"; "int64"; "float"; "bool"; "char"; "string"; "array"; "list"; "option"; "exn"])
     tds
 
@@ -136,9 +146,8 @@ let check_excs ids excs =
 
 let check_function ids loc id args res =
   let args = List.map typ_of_argtyp args in
-  let ct = check_type ids [] [] in
-  List.iter ct args;
-  ct res
+  List.iter (check_type ~inf_ok:true ids [] []) args;
+  check_type ~sup_ok:true ids [] [] res
 
 let check_funcs ids fids funcs =
        ignore
@@ -240,13 +249,13 @@ let rec expand_polyvars typedefs vs t =
     | Record (_loc, fields) -> Record (_loc, List.map (fun f -> { f with f_typ = ep f.f_typ }) fields)
     | Variant (_loc, arms) -> Variant (_loc, List.map (fun (id, ts) -> (id, List.map ep ts)) arms)
 
-    | PolyVar (_loc, arms) ->
+    | PolyVar (_loc, kind, arms) ->
         let arms =
           List.fold_right
             (expand_polyvars_arm typedefs vs)
             arms
             [] in
-        PolyVar (_loc, arms)
+        PolyVar (_loc, kind, arms)
 
     | Array (_loc, t) -> Array (_loc, ep t)
     | List (_loc, t) -> List (_loc, ep t)
@@ -262,7 +271,7 @@ and expand_polyvars_arm typedefs vs arm arms =
 
   match arm with
     | Pv_of (id, ts) -> Pv_of (id, List.map ep ts) :: arms
-    | Pv_pv (PolyVar (_, arms')) ->
+    | Pv_pv (PolyVar (_, _, arms')) ->
         List.fold_right
           (expand_polyvars_arm typedefs vs)
           arms'

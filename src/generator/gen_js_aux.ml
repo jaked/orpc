@@ -173,7 +173,7 @@ let rec gen_to qual_id t x =
             | _ -> raise (Invalid_argument "variant")
         >>
 
-    | PolyVar (_loc, arms) ->
+    | PolyVar (_loc, _, arms) ->
         let arms = List.map (function Pv_pv _ -> assert false | Pv_of (id, ts) -> (id, ts)) arms in
         let mc (id, ts) i =
           match ts with

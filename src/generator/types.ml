@@ -36,7 +36,7 @@ type typ =
     | Tuple of Loc.t * typ list
     | Record of Loc.t * field list
     | Variant of Loc.t * (ident * (typ list)) list
-    | PolyVar of Loc.t * polyvar_arm list
+    | PolyVar of Loc.t * polyvar_kind * polyvar_arm list
     | Array of Loc.t * typ
     | List of Loc.t * typ
     | Option of Loc.t * typ
@@ -51,6 +51,8 @@ and field = {
 }
 
 and polyvar_arm = Pv_of of ident * typ list | Pv_pv of typ
+
+and polyvar_kind = Pv_eq | Pv_sup | Pv_inf
 
 type argtyp =
     | Unlabelled of Loc.t * typ
@@ -95,7 +97,7 @@ let loc_of_typ = function
   | Tuple (loc, _) -> loc
   | Record (loc, _) -> loc
   | Variant (loc, _) -> loc
-  | PolyVar (loc, _) -> loc
+  | PolyVar (loc, _, _) -> loc
   | Array (loc, _) -> loc
   | List (loc, _) -> loc
   | Option (loc, _) -> loc
@@ -120,12 +122,12 @@ let rec strip_locs_typ = function
   | Tuple (_, parts) -> Tuple (g, List.map strip_locs_typ parts)
   | Record (_, fields) -> Record (g, List.map (fun f -> { f with f_typ = strip_locs_typ f.f_typ }) fields)
   | Variant (_, arms) -> Variant (g, List.map (fun (id,ts) -> (id, List.map strip_locs_typ ts)) arms)
-  | PolyVar (_, arms) ->
+  | PolyVar (_, kind, arms) ->
       let arms =
         List.map
           (function Pv_of (id,ts) -> Pv_of (id, List.map strip_locs_typ ts) | pv -> pv)
           arms in
-      PolyVar (g, arms)
+      PolyVar (g, kind, arms)
   | Array (_, t) -> Array (g, strip_locs_typ t)
   | List (_, t) -> List (g, strip_locs_typ t)
   | Option (_, t) -> Option (g, strip_locs_typ t)
