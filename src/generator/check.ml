@@ -41,7 +41,7 @@ let rec check_type ?(inf_ok=false) ?(sup_ok=false) ids vars btds t =
 
     | PolyVar (loc, kind, arms) ->
         begin match kind, inf_ok, sup_ok with
-          | Pv_inf, false, _ -> loc_error loc "infinum not allowed here"
+          | Pv_inf, false, _ -> loc_error loc "infimum not allowed here"
           | Pv_sup, _, false -> loc_error loc "supremum not allowed here"
           | _ -> ()
         end;
@@ -56,7 +56,7 @@ let rec check_type ?(inf_ok=false) ?(sup_ok=false) ids vars btds t =
                     let (len, polyvar) = List.assoc id ids in
                     begin match polyvar with
                       | None -> loc_error loc "not a polymorphic variant"
-                      | Some Pv_inf -> loc_error loc "infinum not allowed here"
+                      | Some Pv_inf -> loc_error loc "infimum not allowed here"
                       | Some Pv_sup -> loc_error loc "supremum not allowed here"
                       | _ -> ()
                     end;
