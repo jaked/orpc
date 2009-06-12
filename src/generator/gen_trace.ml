@@ -244,7 +244,7 @@ let gen_str_typedef ?(qual_id=G.id) ?(rec_mod=true) stub ds =
             (if stub then <:expr< assert false >> else gen_format qual_id rec_mod t)$
           >>)
       ds in
-  <:str_item< let $list:es$ >>
+  <:str_item< let rec $list:es$ >>
 
 let gen_ml name (typedefs, excs, funcs, mode) =
 

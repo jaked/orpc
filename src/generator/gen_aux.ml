@@ -434,9 +434,7 @@ let rec gen_xdr qual_id vs bs ds t =
 
     | Ref (_loc, t) -> gen_xdr t
 
-    | Apply (_loc, mdl, id, args) ->
-        (* XXX should check that mdl = [] for these first two cases *)
-
+    | Apply (_, [], id, args) ->
         if List.mem id bs
         (* refer to a def in scope *)
         then <:expr< Xdr.X_refer $`str:id$ >>
@@ -450,9 +448,14 @@ let rec gen_xdr qual_id vs bs ds t =
           with Not_found ->
             (* refer to a previous def at the OCaml level *)
             G.apps
-              (<:expr< $id:G.module_id mdl (long_xdr id)$ >>)
+              (<:expr< $lid:long_xdr id$ >>)
               (List.map gen_xdr args)
         end
+
+    | Apply (_, mdl, id, args) ->
+        G.apps
+          (<:expr< $id:G.module_id mdl (long_xdr id)$ >>)
+          (List.map gen_xdr args)
 
     | Arrow _ -> assert false
 
