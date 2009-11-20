@@ -213,12 +213,13 @@ if [ $enable_ocamljs -gt 0 ]; then
         exit 1
     fi
 
-    printf "%s" "Checking for netcgi1... "
-    if check_library netcgi1; then
+    printf "%s" "Checking for nethttpd... "
+    if check_library nethttpd; then
         echo "found"
     else
         echo "not found"
-        echo "Required library netcgi1 not found!"
+        echo "Required library nethttpd not found!"
+	echo "Make sure Ocamlnet is configured -with-nethttpd."
         exit 1
     fi
 fi
