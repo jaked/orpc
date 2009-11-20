@@ -40,7 +40,7 @@ let serialize o =
 (* this is in dom package but don't want dependency *)
 class type xMLHttpRequest =
 object
-  method _set_onreadystatechange : (unit -> unit) Ocamljs.jsfun -> unit
+  method _set_onreadystatechange : (unit -> unit) -> unit
   method _get_readyState : int
   (* method _get_responseXML : Dom.document ? *)
   method _get_responseText : string
@@ -71,7 +71,7 @@ let sync_call url proc arg =
 
 let add_call url proc arg pass_reply =
   let xhr = new_XMLHttpRequest () in
-  xhr#_set_onreadystatechange (Ocamljs.jsfun (fun () ->
+  xhr#_set_onreadystatechange (fun () ->
     match xhr#_get_readyState with
       | 4 ->
           let r =
@@ -79,7 +79,7 @@ let add_call url proc arg pass_reply =
             then let o = Javascript.eval xhr#_get_responseText in (fun () -> o)
             else let s = xhr#_get_statusText in (fun () -> raise (Failure s)) in
           pass_reply r
-      | _ -> ()));
+      | _ -> ());
   xhr#open__ "POST" url true;
   xhr#setRequestHeader "Content-Type" "text/plain; charset=utf-8";
   xhr#send (serialize (Obj.repr (proc, arg)))
