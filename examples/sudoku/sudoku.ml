@@ -24,7 +24,7 @@ let make_board () =
         | "1" | "2" | "3" | "4" | "5"
         | "6" | "7" | "8" | "9" -> ()
         | _ -> input#_set_value "" in
-    input#_set_onchange (Ocamljs.jsfun enforce_digit);
+    input#_set_onchange enforce_digit;
     input in
 
   let make_td i j input =
@@ -152,12 +152,12 @@ let get_board rows _ =
 let onload () =
   let (rows, table) = make_board () in
   let check = d#getElementById "check" in
-  check#_set_onclick (Ocamljs.jsfun (check_board rows));
+  check#_set_onclick (check_board rows);
   let new_game = d#getElementById "new_game" in
-  new_game#_set_onclick (Ocamljs.jsfun (get_board rows));
+  new_game#_set_onclick (get_board rows);
   let board = d#getElementById "board" in
   ignore (board#appendChild table)
 
 ;;
 
-D.window#_set_onload (Ocamljs.jsfun onload)
+D.window#_set_onload onload
