@@ -17,6 +17,7 @@ package "ssl" (
   requires = "ssl,lwt-equeue"
   archive(byte) = "lwt_ssl.cma"
   archive(native) = "lwt_ssl.cmxa"
+  exists_if = "lwt_ssl.cma"
 )
 
 package "extra" (
