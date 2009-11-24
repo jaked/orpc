@@ -12,13 +12,13 @@ PA_CMO=pa_orpc_with.cmo
 endif
 
 all: myocamlbuild.ml
-	ocamlbuild main.native $(PA_CMO)
+	ocamlbuild main.byte $(PA_CMO)
 
 doc:
 
 install:
 	if [ $(ENABLE_TYPE_CONV) = 1 ]; then ocamlfind install orpc-syntax META $(BFILES); fi
-	install _build/main.native $(BINDIR)/orpc
+	install _build/main.byte $(BINDIR)/orpc
 
 uninstall:
 	if [ $(ENABLE_TYPE_CONV) = 1 ]; then ocamlfind remove orpc-syntax; fi
