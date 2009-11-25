@@ -167,12 +167,19 @@ let interface_mismatch loc msg = loc_error loc ("interface mismatch: " ^ msg)
 
 let g = Camlp4.PreCast.Loc.ghost
 
-let get_module_type_funcs mts =
+let rec get_module_type_funcs mts =
   match mts with
     | [] -> assert false
-    | (loc, kind, funcs)::_ ->
+    | { mt_loc = loc; mt_kind = kind; mt_funcs = Explicit funcs }::_ ->
         let func =
           match kind with
+            | Ik_abstract -> (fun (loc, id, args, abs_ret) ->
+                let ret =
+                  match abs_ret with
+                    | Apply (_, [], "_r", [ ret ]) -> ret
+                    | _ -> loc_error (loc_of_typ abs_ret) "Abstract function must return _r" in
+                (loc, id, args, ret))
+
             | Sync -> (fun f -> f)
 
             | Async ->
@@ -198,8 +205,9 @@ let get_module_type_funcs mts =
                       | _ -> loc_error (loc_of_typ lwt_ret) "Lwt function must return Lwt.t" in
                   (loc, id, args, ret)) in
         List.map func funcs
+    | _::mts -> get_module_type_funcs mts
 
-let check_module_type_funcs funcs (_, kind, mt_funcs) =
+let check_module_type_funcs has_abstract funcs { mt_loc = loc; mt_kind = kind; mt_funcs = mt_funcs } =
   let check_arg a mt_a =
     if strip_locs_argtyp a <> strip_locs_argtyp mt_a
     then interface_mismatch (loc_of_argtyp mt_a) "arg types" in
@@ -214,6 +222,8 @@ let check_module_type_funcs funcs (_, kind, mt_funcs) =
 
   let func =
     match kind with
+      | Ik_abstract -> assert false
+
       | Sync ->
           (fun (_, id, args, ret) (s_loc, s_id, s_args, s_ret) ->
             check_names s_loc id s_id;
@@ -231,8 +241,13 @@ let check_module_type_funcs funcs (_, kind, mt_funcs) =
             check_args l_loc args l_args;
             check_ret (Apply (g, ["Lwt"], "t", [ ret ])) l_ret) in
 
-  try List.iter2 func funcs mt_funcs
-  with Invalid_argument _ -> interface_mismatch g "func counts"
+  match mt_funcs, has_abstract with
+    | With, true -> ()
+    | With, false -> loc_error loc "must have Abstract module type for with type"
+    | Explicit _, true -> loc_error loc "cannot mix Abstract module type with explicit-function module types"
+    | Explicit mt_funcs, false ->
+        try List.iter2 func funcs mt_funcs
+        with Invalid_argument _ -> interface_mismatch g "func counts"
 
 let rec expand_polyvars typedefs vs t =
   let ep = expand_polyvars typedefs vs in
@@ -323,8 +338,11 @@ let check_interface (typedefs, excs, funcs, mts) =
     match mts with
       | [] -> Simple
       | _ ->
-          List.iter (check_module_type_funcs funcs) mts;
-          Modules (List.map (fun (_, kind, _) -> kind) mts) in
+          let mts_noabs = List.filter (function { mt_kind = Ik_abstract } -> false | _ -> true) mts in
+          let has_abstract = mts_noabs <> mts in
+          List.iter (check_module_type_funcs has_abstract funcs) mts_noabs;
+          let kinds = List.map (fun { mt_kind = kind } -> kind) mts_noabs in
+          Modules kinds in
 
   let typedefs = List.map (List.map (expand_polyvars_typedef typedefs)) typedefs in
   let excs = List.map (expand_polyvars_exc typedefs) excs in

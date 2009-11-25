@@ -38,9 +38,16 @@ let of_res name id = aux_id name ("of_" ^ id ^ "'res")
 let program name = aux_id name "program"
 
 let string_of_kind = function
+  | Ik_abstract -> assert false
   | Sync -> "Sync"
   | Async -> "Async"
   | Lwt -> "Lwt"
+
+let _r_of_kind = function
+  | Ik_abstract -> assert false
+  | Sync -> <:str_item< type 'a _r = 'a >>
+  | Async -> <:str_item< type 'a _r = ((unit -> 'a) -> unit) -> unit >>
+  | Lwt -> <:str_item< type 'a _r = 'a Lwt.t >>
 
 let vars l =
   let ps = List.mapi (fun _ i -> <:patt< $lid:"x" ^ string_of_int i$ >>) l in

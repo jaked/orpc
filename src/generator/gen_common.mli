@@ -30,6 +30,7 @@ val of_arg : string -> string -> Ast.ident
 val of_res : string -> string -> Ast.ident
 val program : string -> Ast.ident
 val string_of_kind : Types.interface_kind -> string
+val _r_of_kind : Types.interface_kind -> Ast.str_item
 val vars : 'a list -> Ast.patt list * Ast.expr list
 val tvars : string list -> Ast.ctyp list
 val arrows : Ast.ctyp list -> Ast.ctyp -> Ast.ctyp

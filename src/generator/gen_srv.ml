@@ -174,6 +174,8 @@ let gen_ml name (typedefs, excs, funcs, mode) =
                       ?version_number
                       srv =
                     $match kind with
+                      | Ik_abstract -> assert false
+
                       | Sync ->
                           List.fold_left
                             (fun e (_, id, args, _) ->

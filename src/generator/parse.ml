@@ -164,6 +164,12 @@ let parse_val loc id t =
     | [], _ -> loc_error loc "function must have at least one argument"
     | args, ret -> (loc, id, args, ret)
 
+let wrap_sig_item i =
+  (* :sig_item wraps SgSem / SgNil around what it parses, so we must
+     wrap the scrutinee when using :sig_item in patterns *)
+  let loc = Ast.loc_of_sig_item i in
+  SgSem (loc, i, SgNil loc)
+
 type s = {
   typedefs : typedefs list;
   exceptions : exc list;
@@ -179,28 +185,58 @@ let rec parse_sig_items i a =
     | SgExc (loc, t) -> { a with exceptions = parse_exception loc t :: a.exceptions }
     | SgVal (loc, id, t) -> { a with funcs = parse_val loc id t :: a.funcs }
     | SgMty (loc, id, MtSig (_, i)) -> { a with module_types = parse_module_type loc id i :: a.module_types }
-    | i -> sig_item_error i "expected type, function declaration, or module type"
+    | _ ->
+        match wrap_sig_item i with
+          | <:sig_item@loc< module type Sync = Abstract with type 'a _r = 'a >> ->
+              { a with module_types = { mt_loc = loc; mt_kind = Sync; mt_funcs = With } :: a.module_types }
+          | <:sig_item@loc< module type Async = Abstract with type 'a _r = ((unit -> 'a) -> unit) -> unit >> ->
+              { a with module_types = { mt_loc = loc; mt_kind = Async; mt_funcs = With } :: a.module_types }
+          | <:sig_item@loc< module type Lwt = Abstract with type 'a _r = 'a Lwt.t >> ->
+              { a with module_types = { mt_loc = loc; mt_kind = Lwt; mt_funcs = With } :: a.module_types }
+          | i -> sig_item_error i "expected type, function declaration, or module type"
 
 and parse_module_type loc id i =
-  let rec parse_sig_items i a =
+  let seen_return_type = ref false in
+  let rec parse_sig_items i mt =
     match i with
-      | SgNil _ -> a
-      | SgSem (_, i1, i2) -> parse_sig_items i1 (parse_sig_items i2 a)
-      | SgVal (loc, id, t) -> parse_val loc id t :: a
-      | i -> sig_item_error i "expected function declaration" in
+      | SgNil _ -> mt
+      | SgSem (_, i1, i2) -> parse_sig_items i1 (parse_sig_items i2 mt)
+      | SgVal (loc, id, t) ->
+          begin match mt.mt_funcs with
+            | With -> assert false
+            | Explicit funcs -> { mt with mt_funcs = Explicit (parse_val loc id t :: funcs) }
+          end
+      | _ ->
+          match wrap_sig_item i with
+            | <:sig_item< type 'a _r >> ->
+              if mt.mt_kind <> Ik_abstract
+              then sig_item_error i "return type may not be declared for non-Abstract module type";
+              seen_return_type := true;
+              mt
+            | i -> sig_item_error i "expected function declaration" in
   let kind =
     match id with
+      | "Abstract" -> Ik_abstract
       | "Sync" -> Sync
       | "Async" -> Async
       | "Lwt" -> Lwt
       | _ -> loc_error loc "unknown interface kind" in
-  (loc, kind, parse_sig_items i [])
+  let mt = { mt_loc = loc; mt_kind = kind; mt_funcs = Explicit [] } in
+  let mt = parse_sig_items i mt in
+  if mt.mt_funcs = Explicit []
+  then loc_error mt.mt_loc "must declare at least one function";
+  if mt.mt_kind = Ik_abstract && not !seen_return_type
+  then loc_error mt.mt_loc "module type Abstract must declare return type";
+  mt
 
 let parse_interface i =
   let s = { typedefs = []; exceptions = []; funcs = []; module_types = [] } in
   let s = parse_sig_items i s in
   let { typedefs = typedefs; exceptions = excs; funcs = funcs; module_types = mts } = s in
   match s with
-    | { funcs = []; module_types = (_, _, _::_)::_ } -> (typedefs, excs, funcs, mts)
-    | { funcs = _::_; module_types = [] } -> (typedefs, excs, funcs, mts)
+    | { funcs = _::_; module_types = [] } -> (typedefs, excs, funcs, mts) (* simple interface *)
+    | { funcs = []; module_types = _::_ } ->
+        if List.for_all (function { mt_kind = Ik_abstract } -> true | _ -> false) mts
+        then loc_error Loc.ghost "must declare at least one non-Abstract module";
+        (typedefs, excs, funcs, mts) (* modules interface *)
     | _ -> loc_error Loc.ghost "expected simple interface or modules interface"

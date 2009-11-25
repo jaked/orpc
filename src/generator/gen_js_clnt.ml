@@ -121,6 +121,8 @@ let gen_ml name (typedefs, excs, funcs, mode) =
                   let $lid:id$ =
                     $G.args_funs args
                       (match kind with
+                        | Ik_abstract -> assert false
+
                         | Sync ->
                             <:expr<
                               C.with_client
@@ -151,6 +153,7 @@ let gen_ml name (typedefs, excs, funcs, mode) =
               <:str_item<
                 module $uid:G.string_of_kind kind$(C : sig val with_client : (Orpc_js_client.t -> 'a) -> 'a end) =
                 struct
+                  $G._r_of_kind kind$;;
                   $list:List.map func funcs$
                 end
               >>)

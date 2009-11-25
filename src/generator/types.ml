@@ -73,9 +73,15 @@ type exc = Loc.t * ident * (typ list)
 
 type func = Loc.t * ident * (argtyp list) * typ
 
-type interface_kind = Sync | Async | Lwt
+type interface_kind = Ik_abstract | Sync | Async | Lwt
 
-type module_type = Loc.t * interface_kind * (func list)
+type mt_funcs = With | Explicit of func list
+
+type module_type = {
+  mt_loc : Loc.t;
+  mt_kind : interface_kind;
+  mt_funcs : mt_funcs;
+}
 
 type pre_interface = typedefs list * exc list * func list * module_type list
 

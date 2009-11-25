@@ -307,6 +307,8 @@ let gen_ml name (typedefs, excs, funcs, mode) =
         let $lid:id$ =
           $G.args_funs args
             (match kind with
+              | Ik_abstract -> assert false
+
               | Sync ->
                   <:expr<
                     let t = $trace_call$ in
@@ -343,6 +345,7 @@ let gen_ml name (typedefs, excs, funcs, mode) =
         (T : Orpc_pp.Trace)
         (A : $uid:name$.$uid:mt$) =
       struct
+        $G._r_of_kind kind$;;
         $list:List.map func funcs$
       end
 
