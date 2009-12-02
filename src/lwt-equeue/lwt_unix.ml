@@ -205,14 +205,14 @@ let rec setup_events' () =
     es#add_handler group handler
   end
 
-and handler _ _ e =
+and handler es _ e =
   let readers, writers =
     match e with
       | Unixqueue.Input_arrived (_, fd) -> [ fd ], []
       | Unixqueue.Output_readiness (_, fd) -> [], [ fd ]
       | Unixqueue.Timeout _ -> [], []
       | Unixqueue.Extra Lwt_equeue.Shutdown ->
-          (Lwt_equeue.event_system ())#clear group;
+          es#clear group;
           raise Equeue.Reject
       | _ -> raise Equeue.Reject in
   let now = ref (-1.) in
