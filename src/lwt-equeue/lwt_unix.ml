@@ -161,6 +161,26 @@ let blocked_thread_count set =
 
 (****)
 
+let wait_children = ref []
+
+(*
+  if Unixqueue's select is interrupted by EINTR then there are two
+  Signal events, but I think this is no harm (we just check for
+  completed children an extra time).
+
+  the Unixqueue manual says that signals may be missed (by catching
+  only EINTR from select), and that there are race conditions in
+  OCaml's signal handling. but handling SIGCHLD is good enough for
+  stock Lwt_unix.
+*)
+let _ =
+  ignore (Sys.signal Sys.sigchld
+             (Sys.Signal_handle (fun _ ->
+               try
+                 let es = Lwt_equeue.event_system () in
+                 es#add_event Unixqueue.Signal
+               with Lwt_equeue.Event_system_not_set -> ())))
+
 (* it doesn't matter what event system we create a group on, it's just a token *)
 (* XXX but once it is terminated we cannot reuse it *)
 let group = (Unixqueue.create_unix_event_system ())#new_group ()
@@ -213,6 +233,21 @@ and handler es _ e =
       | Unixqueue.Timeout _ -> [], []
       | Unixqueue.Extra Lwt_equeue.Shutdown ->
           es#clear group;
+          raise Equeue.Reject
+      | Unixqueue.Signal ->
+          let l = !wait_children in
+          wait_children := [];
+          List.iter
+            (fun ((cont, flags, pid) as e) ->
+              try
+                let (pid', _) as v = Unix.waitpid flags pid in
+                if pid' = 0 then
+                  wait_children := e :: !wait_children
+                else
+                  Lwt.wakeup cont v
+              with e ->
+                Lwt.wakeup_exn cont e)
+            l;
           raise Equeue.Reject
       | _ -> raise Equeue.Reject in
   let now = ref (-1.) in
@@ -322,11 +357,35 @@ let connect ch addr =
   | e ->
       Lwt.fail e
 
-let wait _ = failwith "Lwt_unix.wait: not implemented"
+let _waitpid flags pid =
+  try
+    Lwt.return (Unix.waitpid flags pid)
+  with e ->
+    Lwt.fail e
 
-let waitpid _ _ = failwith "Lwt_unix.waitpid: not implemented"
+let waitpid flags pid =
+  if List.mem Unix.WNOHANG flags then
+    _waitpid flags pid
+  else
+    let flags = Unix.WNOHANG :: flags in
+    Lwt.bind (_waitpid flags pid) (fun ((pid', _) as res) ->
+    if pid' <> 0 then
+      Lwt.return res
+    else
+      let res = Lwt.wait () in
+      wait_children := (res, flags, pid) :: !wait_children;
+      res)
 
-let system _ = failwith "Lwt_unix.system: not implemented"
+let wait () = waitpid [] (-1)
+
+let system cmd =
+  match Unix.fork () with
+     0 -> begin try
+            Unix.execv "/bin/sh" [| "/bin/sh"; "-c"; cmd |]
+          with _ ->
+            exit 127
+          end
+  | id -> Lwt.bind (waitpid [] id) (fun (pid, status) -> Lwt.return status)
 
 let close ch =
   if ch.state = Closed then check_descriptor ch;
@@ -458,6 +517,6 @@ let close_process_full (inchan, outchan, errchan) =
 (* Monitoring functions *)
 let inputs_length () = blocked_thread_count inputs
 let outputs_length () = blocked_thread_count outputs
-let wait_children_length () = failwith "Lwt_unix.wait_children_length: not implemented"
+let wait_children_length () = List.length !wait_children
 let get_new_sleeps () = List.length !new_sleeps
 let sleep_queue_size () = SleepQueue.size !sleep_queue
