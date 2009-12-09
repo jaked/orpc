@@ -119,7 +119,7 @@ let rec parse_type t =
 
     | t -> ctyp_error t "unsupported type"
 
-let parse_typedef loc t =
+let parse_typedef ?(allow_abstract=false) loc t =
   let rec types t a =
     match t with
       | TyAnd (_, t1, t2) -> types t1 (types t2 a)
@@ -134,7 +134,11 @@ let parse_typedef loc t =
             match t with
               | TyMan (_, TyId (_, eq), t) -> Some eq, t
               | _ -> None, t in
-          let t = parse_type t in
+          let t =
+            match t, allow_abstract with
+              | TyNil loc, true -> Abstract loc
+              | TyNil _, false -> ctyp_error t "abstract type not allowed"
+              | _ -> parse_type t in
           { td_loc = loc; td_vars = tvars; td_id = id; td_typ = t; td_eq = eq } ::a
     | t -> ctyp_error t "expected type declaration" in
   types t []

@@ -22,4 +22,4 @@ open Camlp4.PreCast
 
 val parse_interface : Ast.sig_item -> Types.pre_interface
 
-val parse_typedef : Loc.t -> Ast.ctyp -> Types.typedefs
+val parse_typedef : ?allow_abstract:bool -> Loc.t -> Ast.ctyp -> Types.typedefs
