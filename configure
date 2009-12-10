@@ -143,7 +143,7 @@ while [ "$#" -gt 0 ]; do
 		-enable-*)
 			opt=`echo "$1" | sed -e 's/-enable-//' -e 's/-/_/g'`
 			check_eopt "$opt"
-			eval "enable_$opt=2"
+			eval "enable_$opt=1"
 			shift
 			;;
 		-disable-*)
@@ -293,7 +293,7 @@ LIBDIR = $libdir
 
 ENABLE_OCAMLJS = $enable_ocamljs
 ENABLE_SSL = $enable_ssl
-ENABLE_TYPE_CONV = $enable_type_conv$
+ENABLE_TYPE_CONV = $enable_type_conv
 _EOF_
 
 ######################################################################
