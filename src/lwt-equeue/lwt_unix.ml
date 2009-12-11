@@ -20,7 +20,6 @@
  * MA 02111-1307, USA
  *)
 
-(* forward declaration so code order matches regular lwt_unix.ml *)
 let setup_events = ref (fun () -> failwith "setup_events unset")
 
 module SleepQueue =
@@ -226,35 +225,51 @@ let rec setup_events' () =
   end
 
 and handler es _ e =
-  let readers, writers =
+  let readers, writers, child_exited, reject =
     match e with
-      | Unixqueue.Input_arrived (_, fd) -> [ fd ], []
-      | Unixqueue.Output_readiness (_, fd) -> [], [ fd ]
-      | Unixqueue.Timeout _ -> [], []
-      | Unixqueue.Extra Lwt_equeue.Shutdown ->
-          es#clear group;
-          raise Equeue.Reject
-      | Unixqueue.Signal ->
-          let l = !wait_children in
-          wait_children := [];
-          List.iter
-            (fun ((cont, flags, pid) as e) ->
-              try
-                let (pid', _) as v = Unix.waitpid flags pid in
-                if pid' = 0 then
-                  wait_children := e :: !wait_children
-                else
-                  Lwt.wakeup cont v
-              with e ->
-                Lwt.wakeup_exn cont e)
-            l;
-          raise Equeue.Reject
-      | _ -> raise Equeue.Reject in
+      | Unixqueue.Input_arrived (_, fd) -> [ fd ], [], false, false
+      | Unixqueue.Output_readiness (_, fd) -> [], [ fd ], false, false
+      | Unixqueue.Timeout _ -> [], [], false, false
+      | Unixqueue.Extra Lwt_equeue.Shutdown -> es#clear group; [], [], false, true
+      | Unixqueue.Signal -> [], [], true, true
+      | _ -> [], [], false, true in
+
+  (*
+    we call !setup_events when making blocking calls, because there is
+    no other opportunity to set up the Unixqueue events. (maybe Unixqueue
+    should have a pre-select hook.)
+
+    however, we need to be careful not to move new_sleeps into
+    sleep_queue while restart_threads is running, or else threads may
+    not be scheduled fairly. (e.g. let rec t () = yield () >>= t would
+    starve other threads)
+
+    since we call setup_events' at the end of the handler it is safe
+    not to call it within the handler.
+  *)
+  setup_events := ignore;
   let now = ref (-1.) in
   restart_threads now;
   List.iter (fun fd -> perform_actions inputs fd) readers;
   List.iter (fun fd -> perform_actions outputs fd) writers;
-  setup_events' ()
+  if child_exited then begin
+    let l = !wait_children in
+    wait_children := [];
+    List.iter
+      (fun ((cont, flags, pid) as e) ->
+        try
+          let (pid', _) as v = Unix.waitpid flags pid in
+          if pid' = 0 then
+            wait_children := e :: !wait_children
+          else
+            Lwt.wakeup cont v
+        with e ->
+          Lwt.wakeup_exn cont e)
+      l
+  end;
+  setup_events := setup_events';
+  setup_events' ();
+  if reject then raise Equeue.Reject
 
 ;;
 setup_events := setup_events'
