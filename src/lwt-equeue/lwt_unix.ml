@@ -225,14 +225,14 @@ let rec setup_events' () =
   end
 
 and handler es _ e =
-  let readers, writers, child_exited, reject =
+  let readers, writers, child_exited =
     match e with
-      | Unixqueue.Input_arrived (_, fd) -> [ fd ], [], false, false
-      | Unixqueue.Output_readiness (_, fd) -> [], [ fd ], false, false
-      | Unixqueue.Timeout _ -> [], [], false, false
-      | Unixqueue.Extra Lwt_equeue.Shutdown -> es#clear group; [], [], false, true
-      | Unixqueue.Signal -> [], [], true, true
-      | _ -> [], [], false, true in
+      | Unixqueue.Input_arrived (_, fd) -> [ fd ], [], false
+      | Unixqueue.Output_readiness (_, fd) -> [], [ fd ], false
+      | Unixqueue.Timeout _ -> [], [], false
+      | Unixqueue.Extra Lwt_equeue.Shutdown -> es#clear group; raise Equeue.Reject
+      | Unixqueue.Signal -> [], [], true
+      | _ -> raise Equeue.Reject in
 
   (*
     we call !setup_events when making blocking calls, because there is
@@ -269,7 +269,7 @@ and handler es _ e =
   end;
   setup_events := setup_events';
   setup_events' ();
-  if reject then raise Equeue.Reject
+  if e = Unixqueue.Signal then raise Equeue.Reject
 
 ;;
 setup_events := setup_events'
