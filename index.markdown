@@ -1,3 +1,7 @@
+---
+layout: page
+title: Orpc
+---
 Orpc is a tool for generating RPC clients and servers. It can generate
 clients / servers for use with Ocamlnet's ONC RPC implementation (like
 ocamlrpcgen), and also for RPC over HTTP for use with
@@ -5,6 +9,8 @@ ocamlrpcgen), and also for RPC over HTTP for use with
 you give orpc an OCaml signature instead of an RFC-1831/1832-format
 file. Most OCaml types (including polymorphic types), exceptions, and
 functions with labelled/optional arguments are supported.
+
+You can download Orpc at [http://github.com/jaked/orpc] (http://github.com/jaked/orpc).
 
 See [Introduction] (Introduction.html) and [Installation] (Installation.html).
 
