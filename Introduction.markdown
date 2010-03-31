@@ -30,7 +30,7 @@ calls; you can also interpose tracing modules (which orpc generates).
 See more about
 
  * [simple (ocamlrpcgen-style) interfaces] (SimpleInterfaces.html)
- * [modules-style interfaces] (ModuleInterfaces.html)
+ * [modules-style interfaces] (ModulesInterfaces.html)
  * [tracing] (Tracing.html)
  * [RPC over HTTP] (RpcOverHttp.html)
 

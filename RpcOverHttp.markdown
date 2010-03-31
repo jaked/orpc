@@ -1,7 +1,11 @@
-#summary Using orpc with RPC over HTTP with ocamljs
+---
+layout: page
+title: Using orpc with RPC over HTTP with ocamljs
+---
+#Using orpc with RPC over HTTP with ocamljs
 
 Orpc can also be used to call over HTTP from Javascript clients
-written using [http://code.google.com/p/ocamljs/ ocamljs] to Ocamlnet
+written using [ocamljs] (http://github.com/jaked/ocamljs) to Ocamlnet
 servers. When calling `orpc` use the `--js` argument to generate this
 kind of client / server.
 

@@ -1,4 +1,8 @@
-#summary Modules-style interfaces
+---
+layout: page
+title: Modules-style interfaces
+---
+#Modules-style interfaces
 
 The other way to use orpc is "modules" mode. Instead of giving a
 `protocol.x` file as input, you give a `protocol.ml` file containing
@@ -15,10 +19,10 @@ the module types in `Protocol`; and `Protocol_srv` additionally
 contains binding functors that take the module types as arguments.
 
 There are three kinds of module type you can give in an input file,
-`Sync`, `Async`, and `Lwt` (see [http://ocsigen.org/lwt Lwt]). You
+`Sync`, `Async`, and `Lwt` (see [Lwt] (http://ocsigen.org/lwt)). You
 indicate which one by the name of module type. For example:
 
-{{{
+{% highlight ocaml %}
 type foo = int * int
 exception Bar of string
 
@@ -36,7 +40,7 @@ module type Lwt =
 sig
   val baz : foo -> int Lwt.t
 end
-}}}
+{% endhighlight %}
 
 In an input file you can give any combination of these kinds, but they
 must agree on the arguments and return type (modulo the differences in
@@ -45,7 +49,7 @@ kinds you give.
 
 For this input, a `Protocol_clnt` module with the following signature is generated:
 
-{{{
+{% highlight ocaml %}
   (* ... the same stuff as in the simple interface .. *)
 module Sync (C : sig val with_client : (Rpc_client.t -> 'a) -> 'a;; end) :
   Protocol.Sync;;
@@ -53,7 +57,7 @@ module Async (C : sig val with_client : (Rpc_client.t -> 'a) -> 'a;; end) :
   Protocol.Async;;
 module Lwt (C : sig val with_client : (Rpc_client.t -> 'a) -> 'a;; end) :
   Protocol.Lwt;;
-}}}
+{% endhighlight %}
 
 The idea here is that you can get a module implementing the interface
 for a kind by passing a module that can produce clients to the functor
@@ -61,7 +65,7 @@ for that kind.
 
 A `Protocol_srv` module with the following signature is generated:
 
-{{{
+{% highlight ocaml %}
   (* ... the same stuff as in the simple interface .. *)
 module Sync (A : Protocol.Sync) :
   sig
@@ -81,7 +85,7 @@ module Lwt (A : Protocol.Lwt) :
       ?program_number: Rtypes.uint4 ->
         ?version_number: Rtypes.uint4 -> Rpc_server.t -> unit;;
   end;;
-}}}
+{% endhighlight %}
 
 The idea here is that you can bind a module implementing the interface
 for a kind by passing it to the functor for that kind and calling the

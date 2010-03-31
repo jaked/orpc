@@ -1,4 +1,8 @@
-#summary Ocamlrpcgen-style interfaces
+---
+layout: page
+title: Ocamlrpcgen-style interfaces
+---
+#Ocamlrpcgen-style interfaces
 
 One way to use orpc is as a direct replacement for ocamlrpcgen. In
 this mode ("simple" mode), instead of giving a `protocol.x` file as
@@ -6,7 +10,7 @@ input, you give a `protocol.mli` file containing an OCaml signature
 consisting of type, exception, and value declarations (but no module
 type declarations). The `protocol.mli` file is just input to orpc
 (like `protocol.x` for ocamlrpcgen), and is not needed once the
-interface has been generated. See [ModulesInterfaces], where in
+interface has been generated. See [ModulesInterfaces] (ModulesInterfaces.html), where in
 contrast the orpc input also directly defines types and signatures and
 is compiled into clients and servers.
 
