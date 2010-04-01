@@ -1,0 +1,136 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link rel="next" href="Lwt_chan.html">
+<link rel="Up" href="index.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="Lwt" rel="Chapter" href="Lwt.html">
+<link title="Lwt_chan" rel="Chapter" href="Lwt_chan.html">
+<link title="Lwt_condition" rel="Chapter" href="Lwt_condition.html">
+<link title="Lwt_equeue" rel="Chapter" href="Lwt_equeue.html">
+<link title="Lwt_lib" rel="Chapter" href="Lwt_lib.html">
+<link title="Lwt_mutex" rel="Chapter" href="Lwt_mutex.html">
+<link title="Lwt_pool" rel="Chapter" href="Lwt_pool.html">
+<link title="Lwt_pqueue" rel="Chapter" href="Lwt_pqueue.html">
+<link title="Lwt_preemptive" rel="Chapter" href="Lwt_preemptive.html">
+<link title="Lwt_queue" rel="Chapter" href="Lwt_queue.html">
+<link title="Lwt_ssl" rel="Chapter" href="Lwt_ssl.html">
+<link title="Lwt_timeout" rel="Chapter" href="Lwt_timeout.html">
+<link title="Lwt_unix" rel="Chapter" href="Lwt_unix.html">
+<link title="Lwt_util" rel="Chapter" href="Lwt_util.html">
+<link title="Orpc" rel="Chapter" href="Orpc.html">
+<link title="Orpc_js_client" rel="Chapter" href="Orpc_js_client.html">
+<link title="Orpc_js_server" rel="Chapter" href="Orpc_js_server.html">
+<link title="Orpc_onc" rel="Chapter" href="Orpc_onc.html">
+<link title="Orpc_pp" rel="Chapter" href="Orpc_pp.html">
+<link title="Pqueue" rel="Chapter" href="Pqueue.html"><title>Lwt</title>
+</head>
+<body>
+<div class="navbar">&nbsp;<a href="index.html">Up</a>
+&nbsp;<a href="Lwt_chan.html">Next</a>
+</div>
+<center><h1>Module <a href="type_Lwt.html">Lwt</a></h1></center>
+<br>
+<pre><span class="keyword">module</span> Lwt: <code class="code">sig</code> <a href="Lwt.html">..</a> <code class="code">end</code></pre>Module <code class="code">Lwt</code>: cooperative light-weight threads.<br>
+<hr width="100%">
+<br>
+Execution order
+     A thread executes as much as possible.  Switching to another
+     thread is always explicit.
+<p>
+
+   Exception handling<ul>
+<li>You must use "fail e" instead of "raise e" if you want the
+       exception to be wrapped into the thread.</li>
+<li>The construction <code class="code">try t with ...</code> will not catch the
+       exception associated to the thread <code class="code">t</code> if this thread fails.
+       You should use <code class="code">catch</code> instead.</li>
+</ul>
+<br>
+<pre><span class="keyword">type</span> <a name="TYPEt"></a><code class="type">'a</code> t </pre>
+<div class="info">
+The type of threads returning a result of type <code class="code">'a</code>.<br>
+</div>
+
+<pre><span class="keyword">val</span> <a name="VALreturn"></a>return : <code class="type">'a -> 'a <a href="Lwt.html#TYPEt">t</a></code></pre><div class="info">
+<code class="code">return e</code> is a thread whose return value is the value of
+          the expression <code class="code">e</code>.<br>
+</div>
+<pre><span class="keyword">val</span> <a name="VALfail"></a>fail : <code class="type">exn -> 'a <a href="Lwt.html#TYPEt">t</a></code></pre><div class="info">
+<code class="code">fail e</code> is a thread that fails with the exception <code class="code">e</code>.<br>
+</div>
+<pre><span class="keyword">val</span> <a name="VALbind"></a>bind : <code class="type">'a <a href="Lwt.html#TYPEt">t</a> -> ('a -> 'b <a href="Lwt.html#TYPEt">t</a>) -> 'b <a href="Lwt.html#TYPEt">t</a></code></pre><div class="info">
+<code class="code">bind t f</code> is a thread which first waits for the thread <code class="code">t</code>
+          to terminate and then, if the thread succeeds, behaves as the
+          application of function <code class="code">f</code> to the return value of <code class="code">t</code>.  If
+          the thread <code class="code">t</code> fails, <code class="code">bind t f</code> also fails, with the same
+          exception.
+<p>
+
+          The expression <code class="code">bind t (fun x -&gt; t')</code> can intuitively be read
+          as <code class="code">let x = t in t'</code>.
+<p>
+
+          Note that <code class="code">bind</code> is also often used just for synchronization
+          purpose: <code class="code">t'</code> will not execute before <code class="code">t</code> is terminated.
+<p>
+
+          The result of a thread can be bound several time.<br>
+</div>
+<pre><span class="keyword">val</span> <a name="VAL(>>=)"></a>(&gt;&gt;=) : <code class="type">'a <a href="Lwt.html#TYPEt">t</a> -> ('a -> 'b <a href="Lwt.html#TYPEt">t</a>) -> 'b <a href="Lwt.html#TYPEt">t</a></code></pre><div class="info">
+<code class="code">t &gt;&gt;= f</code> is an alternative notation for <code class="code">bind t f</code>.<br>
+</div>
+<pre><span class="keyword">val</span> <a name="VALcatch"></a>catch : <code class="type">(unit -> 'a <a href="Lwt.html#TYPEt">t</a>) -> (exn -> 'a <a href="Lwt.html#TYPEt">t</a>) -> 'a <a href="Lwt.html#TYPEt">t</a></code></pre><div class="info">
+<code class="code">catch t f</code> is a thread that behaves as the thread <code class="code">t ()</code> if
+          this thread succeeds.  If the thread <code class="code">t ()</code> fails with some
+          exception, <code class="code">catch t f</code> behaves as the application of <code class="code">f</code> to
+          this exception.<br>
+</div>
+<pre><span class="keyword">val</span> <a name="VALtry_bind"></a>try_bind : <code class="type">(unit -> 'a <a href="Lwt.html#TYPEt">t</a>) -> ('a -> 'b <a href="Lwt.html#TYPEt">t</a>) -> (exn -> 'b <a href="Lwt.html#TYPEt">t</a>) -> 'b <a href="Lwt.html#TYPEt">t</a></code></pre><div class="info">
+<code class="code">try_bind t f g</code> behaves as <code class="code">bind (t ()) f</code> if <code class="code">t</code> does not fail.
+         Otherwise, it behaves as the application of <code class="code">g</code> to the
+         exception associated to <code class="code">t ()</code>.<br>
+</div>
+<pre><span class="keyword">val</span> <a name="VALchoose"></a>choose : <code class="type">'a <a href="Lwt.html#TYPEt">t</a> list -> 'a <a href="Lwt.html#TYPEt">t</a></code></pre><div class="info">
+<code class="code">choose l</code> behaves as the first thread in <code class="code">l</code> to terminate.
+          If several threads are already terminated, one is choosen
+          at random.<br>
+</div>
+<pre><span class="keyword">val</span> <a name="VALignore_result"></a>ignore_result : <code class="type">'a <a href="Lwt.html#TYPEt">t</a> -> unit</code></pre><div class="info">
+<code class="code">ignore_result t</code> start the thread <code class="code">t</code> and ignores its result
+          value if the thread terminates sucessfully.  However, if the
+          thread <code class="code">t</code> fails, the exception is raised instead of being
+          ignored.
+          You should use this function if you want to start a thread
+          and don't care what its return value is, nor when it
+          terminates (for instance, because it is looping).
+          Note that if the thread <code class="code">t</code> yields and later fails, the
+          exception will not be raised at this point in the program.<br>
+</div>
+<pre><span class="keyword">val</span> <a name="VALwait"></a>wait : <code class="type">unit -> 'a <a href="Lwt.html#TYPEt">t</a></code></pre><div class="info">
+<code class="code">wait ()</code> is a thread which sleeps forever (unless it is
+          resumed by one of the functions <code class="code">wakeup</code>, <code class="code">wakeup_exn</code> below).
+          This thread does not block the execution of the remainder of
+          the program (except of course, if another thread tries to
+          wait for its termination).<br>
+</div>
+<pre><span class="keyword">val</span> <a name="VALwakeup"></a>wakeup : <code class="type">'a <a href="Lwt.html#TYPEt">t</a> -> 'a -> unit</code></pre><div class="info">
+<code class="code">wakeup t e</code> makes the sleeping thread <code class="code">t</code> terminate and
+         return the value of the expression <code class="code">e</code>.<br>
+</div>
+<pre><span class="keyword">val</span> <a name="VALwakeup_exn"></a>wakeup_exn : <code class="type">'a <a href="Lwt.html#TYPEt">t</a> -> exn -> unit</code></pre><div class="info">
+<code class="code">wakeup_exn t e</code> makes the sleeping thread <code class="code">t</code> fail with the
+         exception <code class="code">e</code>.<br>
+</div>
+<pre><span class="keyword">val</span> <a name="VALfinalize"></a>finalize : <code class="type">(unit -> 'a <a href="Lwt.html#TYPEt">t</a>) -> (unit -> unit <a href="Lwt.html#TYPEt">t</a>) -> 'a <a href="Lwt.html#TYPEt">t</a></code></pre><div class="info">
+<code class="code">finalize f g</code> returns the same result as <code class="code">f ()</code> whether it fails
+         or not. In both cases, <code class="code">g ()</code> is executed after <code class="code">f</code>.<br>
+</div>
+</body></html>

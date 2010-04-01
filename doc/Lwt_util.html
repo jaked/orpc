@@ -1,0 +1,103 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link rel="previous" href="Lwt_unix.html">
+<link rel="next" href="Orpc.html">
+<link rel="Up" href="index.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="Lwt" rel="Chapter" href="Lwt.html">
+<link title="Lwt_chan" rel="Chapter" href="Lwt_chan.html">
+<link title="Lwt_condition" rel="Chapter" href="Lwt_condition.html">
+<link title="Lwt_equeue" rel="Chapter" href="Lwt_equeue.html">
+<link title="Lwt_lib" rel="Chapter" href="Lwt_lib.html">
+<link title="Lwt_mutex" rel="Chapter" href="Lwt_mutex.html">
+<link title="Lwt_pool" rel="Chapter" href="Lwt_pool.html">
+<link title="Lwt_pqueue" rel="Chapter" href="Lwt_pqueue.html">
+<link title="Lwt_preemptive" rel="Chapter" href="Lwt_preemptive.html">
+<link title="Lwt_queue" rel="Chapter" href="Lwt_queue.html">
+<link title="Lwt_ssl" rel="Chapter" href="Lwt_ssl.html">
+<link title="Lwt_timeout" rel="Chapter" href="Lwt_timeout.html">
+<link title="Lwt_unix" rel="Chapter" href="Lwt_unix.html">
+<link title="Lwt_util" rel="Chapter" href="Lwt_util.html">
+<link title="Orpc" rel="Chapter" href="Orpc.html">
+<link title="Orpc_js_client" rel="Chapter" href="Orpc_js_client.html">
+<link title="Orpc_js_server" rel="Chapter" href="Orpc_js_server.html">
+<link title="Orpc_onc" rel="Chapter" href="Orpc_onc.html">
+<link title="Orpc_pp" rel="Chapter" href="Orpc_pp.html">
+<link title="Pqueue" rel="Chapter" href="Pqueue.html"><link title="Lists iterators" rel="Section" href="#2_Listsiterators">
+<link title="Regions" rel="Section" href="#2_Regions">
+<title>Lwt_util</title>
+</head>
+<body>
+<div class="navbar"><a href="Lwt_unix.html">Previous</a>
+&nbsp;<a href="index.html">Up</a>
+&nbsp;<a href="Orpc.html">Next</a>
+</div>
+<center><h1>Module <a href="type_Lwt_util.html">Lwt_util</a></h1></center>
+<br>
+<pre><span class="keyword">module</span> Lwt_util: <code class="code">sig</code> <a href="Lwt_util.html">..</a> <code class="code">end</code></pre><a name="2_Concurrency"></a>
+<h2>Concurrency</h2><br>
+<hr width="100%">
+<pre><span class="keyword">val</span> <a name="VALjoin"></a>join : <code class="type">unit <a href="Lwt.html#TYPEt">Lwt.t</a> list -> unit <a href="Lwt.html#TYPEt">Lwt.t</a></code></pre><div class="info">
+<code class="code">join l</code> wait for all threads in <code class="code">l</code> to terminate.
+        If fails if one of the threads fail.<br>
+</div>
+<br>
+<a name="2_Listsiterators"></a>
+<h2>Lists iterators</h2><br>
+<pre><span class="keyword">val</span> <a name="VALiter"></a>iter : <code class="type">('a -> unit <a href="Lwt.html#TYPEt">Lwt.t</a>) -> 'a list -> unit <a href="Lwt.html#TYPEt">Lwt.t</a></code></pre><div class="info">
+<code class="code">iter f l</code> start a thread for each element in <code class="code">l</code>.  The threads
+        are started according to the list order, but then can run
+        concurrently.  It terminates when all the threads are
+        terminated, if all threads are successful.  It fails if any of
+        the threads fail.<br>
+</div>
+<pre><span class="keyword">val</span> <a name="VALiter_serial"></a>iter_serial : <code class="type">('a -> unit <a href="Lwt.html#TYPEt">Lwt.t</a>) -> 'a list -> unit <a href="Lwt.html#TYPEt">Lwt.t</a></code></pre><div class="info">
+Similar to <code class="code">iter</code> but wait for one thread to terminate before
+        starting the next one.<br>
+</div>
+<pre><span class="keyword">val</span> <a name="VALmap"></a>map : <code class="type">('a -> 'b <a href="Lwt.html#TYPEt">Lwt.t</a>) -> 'a list -> 'b list <a href="Lwt.html#TYPEt">Lwt.t</a></code></pre><div class="info">
+<code class="code">map f l</code> apply <code class="code">f</code> to each element in <code class="code">l</code> and collect the
+        results of the threads thus created.  The threads are started
+        according to the list order, but then can run concurrently.
+        <code class="code">map f l</code> fails if any of the threads fail.<br>
+</div>
+<pre><span class="keyword">val</span> <a name="VALmap_with_waiting_action"></a>map_with_waiting_action : <code class="type">('a -> 'b <a href="Lwt.html#TYPEt">Lwt.t</a>) -> ('a -> unit) -> 'a list -> 'b list <a href="Lwt.html#TYPEt">Lwt.t</a></code></pre><div class="info">
+<code class="code">map_with_waiting_action f wa l</code> apply <code class="code">f</code> to each element
+        in <code class="code">l</code> and collect the results of the threads thus created.
+        The threads are started according to the list order, but
+        then can run concurrently.  The difference with <code class="code">map f l</code> is
+        that function wa will be called on the element that the
+        function is waiting for its termination.<br>
+</div>
+<pre><span class="keyword">val</span> <a name="VALmap_serial"></a>map_serial : <code class="type">('a -> 'b <a href="Lwt.html#TYPEt">Lwt.t</a>) -> 'a list -> 'b list <a href="Lwt.html#TYPEt">Lwt.t</a></code></pre><div class="info">
+Similar to <code class="code">map</code> but wait for one thread to terminate before
+        starting the next one.<br>
+</div>
+<pre><span class="keyword">val</span> <a name="VALfold_left"></a>fold_left : <code class="type">('a -> 'b -> 'a <a href="Lwt.html#TYPEt">Lwt.t</a>) -> 'a -> 'b list -> 'a <a href="Lwt.html#TYPEt">Lwt.t</a></code></pre><div class="info">
+Similar to <code class="code">List.fold_left</code>.<br>
+</div>
+<br>
+<a name="2_Regions"></a>
+<h2>Regions</h2><br>
+<pre><span class="keyword">type</span> <a name="TYPEregion"></a><code class="type"></code>region </pre>
+
+<pre><span class="keyword">val</span> <a name="VALmake_region"></a>make_region : <code class="type">int -> <a href="Lwt_util.html#TYPEregion">region</a></code></pre><div class="info">
+<code class="code">make_region sz</code> create a region of size <code class="code">sz</code>.<br>
+</div>
+<pre><span class="keyword">val</span> <a name="VALresize_region"></a>resize_region : <code class="type"><a href="Lwt_util.html#TYPEregion">region</a> -> int -> unit</code></pre><div class="info">
+<code class="code">resize_region reg sz</code> resize the region <code class="code">reg</code> to size <code class="code">sz</code>.<br>
+</div>
+<pre><span class="keyword">val</span> <a name="VALrun_in_region"></a>run_in_region : <code class="type"><a href="Lwt_util.html#TYPEregion">region</a> -> int -> (unit -> 'a <a href="Lwt.html#TYPEt">Lwt.t</a>) -> 'a <a href="Lwt.html#TYPEt">Lwt.t</a></code></pre><div class="info">
+<code class="code">run_in_region reg size f</code> execute the thread produced by the
+          function <code class="code">f</code> in the region <code class="code">reg</code>. The thread is not started
+          before some room is available in the region.<br>
+</div>
+</body></html>

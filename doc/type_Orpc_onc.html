@@ -1,0 +1,48 @@
+<html><head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="Lwt" rel="Chapter" href="Lwt.html">
+<link title="Lwt_chan" rel="Chapter" href="Lwt_chan.html">
+<link title="Lwt_condition" rel="Chapter" href="Lwt_condition.html">
+<link title="Lwt_equeue" rel="Chapter" href="Lwt_equeue.html">
+<link title="Lwt_lib" rel="Chapter" href="Lwt_lib.html">
+<link title="Lwt_mutex" rel="Chapter" href="Lwt_mutex.html">
+<link title="Lwt_pool" rel="Chapter" href="Lwt_pool.html">
+<link title="Lwt_pqueue" rel="Chapter" href="Lwt_pqueue.html">
+<link title="Lwt_preemptive" rel="Chapter" href="Lwt_preemptive.html">
+<link title="Lwt_queue" rel="Chapter" href="Lwt_queue.html">
+<link title="Lwt_ssl" rel="Chapter" href="Lwt_ssl.html">
+<link title="Lwt_timeout" rel="Chapter" href="Lwt_timeout.html">
+<link title="Lwt_unix" rel="Chapter" href="Lwt_unix.html">
+<link title="Lwt_util" rel="Chapter" href="Lwt_util.html">
+<link title="Orpc" rel="Chapter" href="Orpc.html">
+<link title="Orpc_js_client" rel="Chapter" href="Orpc_js_client.html">
+<link title="Orpc_js_server" rel="Chapter" href="Orpc_js_server.html">
+<link title="Orpc_onc" rel="Chapter" href="Orpc_onc.html">
+<link title="Orpc_pp" rel="Chapter" href="Orpc_pp.html">
+<link title="Pqueue" rel="Chapter" href="Pqueue.html"><title>Orpc_onc</title>
+</head>
+<body>
+<code class="code"><span class="keyword">sig</span><br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;x_char&nbsp;:&nbsp;<span class="constructor">Xdr</span>.xdr_type_term<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;x_list&nbsp;:&nbsp;<span class="constructor">Xdr</span>.xdr_type_term&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Xdr</span>.xdr_type_term<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;to_list&nbsp;:&nbsp;(<span class="constructor">Xdr</span>.xdr_value&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="keywordsign">'</span>a)&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Xdr</span>.xdr_value&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="keywordsign">'</span>a&nbsp;list<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;of_list&nbsp;:&nbsp;(<span class="keywordsign">'</span>a&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Xdr</span>.xdr_value)&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="keywordsign">'</span>a&nbsp;list&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Xdr</span>.xdr_value<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;to_option&nbsp;:&nbsp;(<span class="constructor">Xdr</span>.xdr_value&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="keywordsign">'</span>a)&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Xdr</span>.xdr_value&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="keywordsign">'</span>a&nbsp;option<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;of_option&nbsp;:&nbsp;(<span class="keywordsign">'</span>a&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Xdr</span>.xdr_value)&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="keywordsign">'</span>a&nbsp;option&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Xdr</span>.xdr_value<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;orpc_aux_to_orpc_result&nbsp;:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;(<span class="constructor">Xdr</span>.xdr_value&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="keywordsign">'</span>a)&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;(<span class="constructor">Xdr</span>.xdr_value&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;exn)&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Xdr</span>.xdr_value&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;(<span class="keywordsign">'</span>a,&nbsp;exn)&nbsp;<span class="constructor">Orpc</span>.orpc_result<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;orpc_aux_of_orpc_result&nbsp;:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;(<span class="keywordsign">'</span>a&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Xdr</span>.xdr_value)&nbsp;<span class="keywordsign">-&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;(exn&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Xdr</span>.xdr_value)&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;(<span class="keywordsign">'</span>a,&nbsp;exn)&nbsp;<span class="constructor">Orpc</span>.orpc_result&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Xdr</span>.xdr_value<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;orpc_aux_xdr_orpc_result&nbsp;:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="constructor">Xdr</span>.xdr_type_term&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Xdr</span>.xdr_type_term&nbsp;<span class="keywordsign">-&gt;</span>&nbsp;<span class="constructor">Xdr</span>.xdr_type_term<br>
+&nbsp;&nbsp;<span class="keyword">val</span>&nbsp;session&nbsp;:&nbsp;<span class="constructor">Rpc_server</span>.session&nbsp;option&nbsp;<span class="constructor">Pervasives</span>.ref<br>
+<span class="keyword">end</span></code></body></html>

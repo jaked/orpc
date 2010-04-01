@@ -1,0 +1,90 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<link rel="stylesheet" href="style.css" type="text/css">
+<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+<link rel="Start" href="index.html">
+<link rel="previous" href="Lwt_timeout.html">
+<link rel="next" href="Lwt_util.html">
+<link rel="Up" href="index.html">
+<link title="Index of types" rel=Appendix href="index_types.html">
+<link title="Index of exceptions" rel=Appendix href="index_exceptions.html">
+<link title="Index of values" rel=Appendix href="index_values.html">
+<link title="Index of modules" rel=Appendix href="index_modules.html">
+<link title="Index of module types" rel=Appendix href="index_module_types.html">
+<link title="Lwt" rel="Chapter" href="Lwt.html">
+<link title="Lwt_chan" rel="Chapter" href="Lwt_chan.html">
+<link title="Lwt_condition" rel="Chapter" href="Lwt_condition.html">
+<link title="Lwt_equeue" rel="Chapter" href="Lwt_equeue.html">
+<link title="Lwt_lib" rel="Chapter" href="Lwt_lib.html">
+<link title="Lwt_mutex" rel="Chapter" href="Lwt_mutex.html">
+<link title="Lwt_pool" rel="Chapter" href="Lwt_pool.html">
+<link title="Lwt_pqueue" rel="Chapter" href="Lwt_pqueue.html">
+<link title="Lwt_preemptive" rel="Chapter" href="Lwt_preemptive.html">
+<link title="Lwt_queue" rel="Chapter" href="Lwt_queue.html">
+<link title="Lwt_ssl" rel="Chapter" href="Lwt_ssl.html">
+<link title="Lwt_timeout" rel="Chapter" href="Lwt_timeout.html">
+<link title="Lwt_unix" rel="Chapter" href="Lwt_unix.html">
+<link title="Lwt_util" rel="Chapter" href="Lwt_util.html">
+<link title="Orpc" rel="Chapter" href="Orpc.html">
+<link title="Orpc_js_client" rel="Chapter" href="Orpc_js_client.html">
+<link title="Orpc_js_server" rel="Chapter" href="Orpc_js_server.html">
+<link title="Orpc_onc" rel="Chapter" href="Orpc_onc.html">
+<link title="Orpc_pp" rel="Chapter" href="Orpc_pp.html">
+<link title="Pqueue" rel="Chapter" href="Pqueue.html"><title>Lwt_unix</title>
+</head>
+<body>
+<div class="navbar"><a href="Lwt_timeout.html">Previous</a>
+&nbsp;<a href="index.html">Up</a>
+&nbsp;<a href="Lwt_util.html">Next</a>
+</div>
+<center><h1>Module <a href="type_Lwt_unix.html">Lwt_unix</a></h1></center>
+<br>
+<pre><span class="keyword">module</span> Lwt_unix: <code class="code">sig</code> <a href="Lwt_unix.html">..</a> <code class="code">end</code></pre>Module <code class="code">Lwt_unix</code>: thread-compatible system calls<br>
+<hr width="100%">
+<pre><span class="keyword">val</span> <a name="VALsleep"></a>sleep : <code class="type">float -> unit <a href="Lwt.html#TYPEt">Lwt.t</a></code></pre><div class="info">
+<code class="code">sleep d</code> is a threads which remain suspended for <code class="code">d</code> seconds
+          (letting other threads run) and then terminates.<br>
+</div>
+<pre><span class="keyword">val</span> <a name="VALyield"></a>yield : <code class="type">unit -> unit <a href="Lwt.html#TYPEt">Lwt.t</a></code></pre><div class="info">
+<code class="code">yield ()</code> is a threads which suspends itself (letting other
+          thread run) and then resumes as soon as possible and
+          terminates.<br>
+</div>
+<pre><span class="keyword">val</span> <a name="VALrun"></a>run : <code class="type">'a <a href="Lwt.html#TYPEt">Lwt.t</a> -> 'a</code></pre><div class="info">
+<code class="code">run t</code> lets the thread <code class="code">t</code> run until it terminates.  It
+          evaluates to the return value of <code class="code">t</code>, or raise the exception
+          associated to <code class="code">t</code> if <code class="code">t</code> fails.
+<p>
+
+          You should avoid using <code class="code">run</code> inside threads:<ul>
+<li>The calling threads will not resume before <code class="code">run</code>
+            returns.</li>
+<li>Successive invocations of <code class="code">run</code> are serialized: an
+            invocation of <code class="code">run</code> will not terminate before all
+            subsequent invocations are terminated.</li>
+</ul>
+<br>
+</div>
+<br>
+These functions behave as their <code class="code">Unix</code> counterparts, but let other
+    threads run while waiting for the completion of the system call.<br>
+<pre><span class="keyword">type</span> <a name="TYPEfile_descr"></a><code class="type"></code>file_descr </pre>
+
+<pre><span class="keyword">val</span> <a name="VALread"></a>read : <code class="type"><a href="Lwt_unix.html#TYPEfile_descr">file_descr</a> -> string -> int -> int -> int <a href="Lwt.html#TYPEt">Lwt.t</a></code></pre><pre><span class="keyword">val</span> <a name="VALwrite"></a>write : <code class="type"><a href="Lwt_unix.html#TYPEfile_descr">file_descr</a> -> string -> int -> int -> int <a href="Lwt.html#TYPEt">Lwt.t</a></code></pre><pre><span class="keyword">val</span> <a name="VALwait_read"></a>wait_read : <code class="type"><a href="Lwt_unix.html#TYPEfile_descr">file_descr</a> -> unit <a href="Lwt.html#TYPEt">Lwt.t</a></code></pre><div class="info">
+waits (without blocking other threads)
+    until there is something to read on the file descriptor<br>
+</div>
+<pre><span class="keyword">val</span> <a name="VALwait_write"></a>wait_write : <code class="type"><a href="Lwt_unix.html#TYPEfile_descr">file_descr</a> -> unit <a href="Lwt.html#TYPEt">Lwt.t</a></code></pre><div class="info">
+waits (without blocking other threads)
+    until it is possible to write on the file descriptor<br>
+</div>
+<pre><span class="keyword">val</span> <a name="VALpipe"></a>pipe : <code class="type">unit -> <a href="Lwt_unix.html#TYPEfile_descr">file_descr</a> * <a href="Lwt_unix.html#TYPEfile_descr">file_descr</a></code></pre><pre><span class="keyword">val</span> <a name="VALpipe_in"></a>pipe_in : <code class="type">unit -> <a href="Lwt_unix.html#TYPEfile_descr">file_descr</a> * Unix.file_descr</code></pre><pre><span class="keyword">val</span> <a name="VALpipe_out"></a>pipe_out : <code class="type">unit -> Unix.file_descr * <a href="Lwt_unix.html#TYPEfile_descr">file_descr</a></code></pre><pre><span class="keyword">val</span> <a name="VALsocket"></a>socket : <code class="type">Unix.socket_domain -> Unix.socket_type -> int -> <a href="Lwt_unix.html#TYPEfile_descr">file_descr</a></code></pre><pre><span class="keyword">val</span> <a name="VALsocketpair"></a>socketpair : <code class="type">Unix.socket_domain -><br>       Unix.socket_type -> int -> <a href="Lwt_unix.html#TYPEfile_descr">file_descr</a> * <a href="Lwt_unix.html#TYPEfile_descr">file_descr</a></code></pre><pre><span class="keyword">val</span> <a name="VALbind"></a>bind : <code class="type"><a href="Lwt_unix.html#TYPEfile_descr">file_descr</a> -> Unix.sockaddr -> unit</code></pre><pre><span class="keyword">val</span> <a name="VALlisten"></a>listen : <code class="type"><a href="Lwt_unix.html#TYPEfile_descr">file_descr</a> -> int -> unit</code></pre><pre><span class="keyword">val</span> <a name="VALaccept"></a>accept : <code class="type"><a href="Lwt_unix.html#TYPEfile_descr">file_descr</a> -> (<a href="Lwt_unix.html#TYPEfile_descr">file_descr</a> * Unix.sockaddr) <a href="Lwt.html#TYPEt">Lwt.t</a></code></pre><pre><span class="keyword">val</span> <a name="VALconnect"></a>connect : <code class="type"><a href="Lwt_unix.html#TYPEfile_descr">file_descr</a> -> Unix.sockaddr -> unit <a href="Lwt.html#TYPEt">Lwt.t</a></code></pre><pre><span class="keyword">val</span> <a name="VALshutdown"></a>shutdown : <code class="type"><a href="Lwt_unix.html#TYPEfile_descr">file_descr</a> -> Unix.shutdown_command -> unit</code></pre><pre><span class="keyword">val</span> <a name="VALclose"></a>close : <code class="type"><a href="Lwt_unix.html#TYPEfile_descr">file_descr</a> -> unit</code></pre><pre><span class="keyword">val</span> <a name="VALsetsockopt"></a>setsockopt : <code class="type"><a href="Lwt_unix.html#TYPEfile_descr">file_descr</a> -> Unix.socket_bool_option -> bool -> unit</code></pre><pre><span class="keyword">val</span> <a name="VALset_close_on_exec"></a>set_close_on_exec : <code class="type"><a href="Lwt_unix.html#TYPEfile_descr">file_descr</a> -> unit</code></pre><pre><span class="keyword">val</span> <a name="VALwait"></a>wait : <code class="type">unit -> (int * Unix.process_status) <a href="Lwt.html#TYPEt">Lwt.t</a></code></pre><pre><span class="keyword">val</span> <a name="VALwaitpid"></a>waitpid : <code class="type">Unix.wait_flag list -> int -> (int * Unix.process_status) <a href="Lwt.html#TYPEt">Lwt.t</a></code></pre><pre><span class="keyword">val</span> <a name="VALsystem"></a>system : <code class="type">string -> Unix.process_status <a href="Lwt.html#TYPEt">Lwt.t</a></code></pre><br>
+Aborting a connection<br>
+<pre><span class="keyword">val</span> <a name="VALabort"></a>abort : <code class="type"><a href="Lwt_unix.html#TYPEfile_descr">file_descr</a> -> exn -> unit</code></pre><div class="info">
+Makes all current and further uses of the file descriptor
+          fail with the given exception<br>
+</div>
+<br>
+File descriptor wrappings/unwrappings<br>
+<pre><span class="keyword">val</span> <a name="VALunix_file_descr"></a>unix_file_descr : <code class="type"><a href="Lwt_unix.html#TYPEfile_descr">file_descr</a> -> Unix.file_descr</code></pre><pre><span class="keyword">val</span> <a name="VALof_unix_file_descr"></a>of_unix_file_descr : <code class="type">Unix.file_descr -> <a href="Lwt_unix.html#TYPEfile_descr">file_descr</a></code></pre></body></html>
