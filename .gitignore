@@ -1,0 +1,7 @@
+doc
+stage
+_build
+*.byte
+myocamlbuild.ml
+!tools/myocamlbuild.ml
+Makefile.conf
