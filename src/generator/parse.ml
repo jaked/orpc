@@ -1,6 +1,7 @@
 (*
  * This file is part of orpc, OCaml signature to ONC RPC generator
  * Copyright (C) 2008-9 Skydeck, Inc
+ * Copyright (C) 2010 Jacob Donham
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as

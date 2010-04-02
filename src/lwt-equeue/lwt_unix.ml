@@ -1,6 +1,7 @@
 (*
  * This file is part of orpc, OCaml signature to ONC RPC generator
  * Copyright (C) 2008-9 Skydeck, Inc
+ * Copyright (C) 2010 Jacob Donham
  * Original file (lwt_unix.ml in the Lwt source distribution) is
  * Copyright (C) 2005-2008 Jérôme Vouillon
  *
