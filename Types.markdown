@@ -25,6 +25,7 @@ equivalent of `'a`):
 | `'a * 'b * ...`     | `struct { [['a]] 0; [['b]] 1; ... }`                        |
 | `{ foo : 'a; ... }` | `struct { [['a]] foo; ... }`                                |
 | `Foo of 'a ...`     | `union switch () { case 0: [['a]] 0; ... }`                 |
+| `` `foo of 'a ...`` | `union switch () { case 0: [['a]] 0; ... }`                 |
 | `'a array`          | `[['a]]<>`                                                  |
 | `'a list`           | `union switch () { case 0: void 0; case 1: [['a list]] 1 }` |
 | `'a option`         | `[['a]] *`                                                  |

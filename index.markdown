@@ -10,7 +10,7 @@ you give orpc an OCaml signature instead of an RFC-1831/1832-format
 file. Most OCaml types (including polymorphic types), exceptions, and
 functions with labelled/optional arguments are supported.
 
-You can download Orpc at [http://github.com/jaked/orpc] (http://github.com/jaked/orpc).
+You can download Orpc at [http://github.com/jaked/orpc/downloads] (http://github.com/jaked/orpc/downloads).
 
 See [Introduction] (Introduction.html) and [Installation] (Installation.html).
 

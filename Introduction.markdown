@@ -32,6 +32,7 @@ See more about
  * [simple (ocamlrpcgen-style) interfaces] (SimpleInterfaces.html)
  * [modules-style interfaces] (ModulesInterfaces.html)
  * [tracing] (Tracing.html)
+ * [externally-defined types] (External.html)
  * [RPC over HTTP] (RpcOverHttp.html)
 
 Also included is lwt-equeue, a port of Lwt to run on top of Ocamlnet's
