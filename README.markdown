@@ -6,7 +6,7 @@ you give orpc an OCaml signature instead of an RFC-1831/1832-format
 file. Most OCaml types (including polymorphic types), exceptions, and
 functions with labelled/optional arguments are supported.
 
-See [http://jaked.github.com/orpc] for details.
+See [http://jaked.github.com/orpc] (http://jaked.github.com/orpc) for details.
 
 For a quick start:
 
