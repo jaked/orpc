@@ -1,5 +1,5 @@
 name = "orpc-syntax"
-version = "0.1"
+version = "0.3"
 description = "syntax extension for orpc"
 requires = "type-conv.syntax"
 archive(syntax,preprocessor) = "orpc_generator.cmo,pa_orpc_with.cmo"
