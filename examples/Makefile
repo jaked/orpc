@@ -6,6 +6,10 @@ ifeq ($(ENABLE_OCAMLJS),1)
 DIRS += clicks
 endif
 
+ifeq ($(ENABLE_TYPE_CONV),1)
+DIRS += external
+endif
+
 all:
 	for dir in $(DIRS); do \
 		$(MAKE) -C $$dir all || exit; \

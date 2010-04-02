@@ -1,0 +1,6 @@
+1. Build with `make`
+2. Run server with `./server.byte -conf server.cfg`
+3. Run client with `./client.byte`
+
+This example illustrates the use of types declared externally to the
+interface description; see protocol.ml and types.ml.

@@ -1,0 +1,3 @@
+<*.ml*> : pkg_orpc-onc, pkg_netplex, pkg_lwt-equeue
+<types.ml> : syntax_camlp4o, pkg_orpc-syntax
+<*.byte> : pkg_orpc-onc, pkg_netplex, pkg_lwt-equeue
