@@ -39,5 +39,5 @@ examples:
 
 .PHONY: examples doc
 
-gcode:
-	rsync -a --delete --exclude '.svn/' doc/ ../doc/
+github:
+	rsync -a --delete --exclude './' doc/ ../orpc.gh-pages/doc/
