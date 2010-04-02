@@ -91,5 +91,33 @@ The idea here is that you can bind a module implementing the interface
 for a kind by passing it to the functor for that kind and calling the
 `bind` function.
 
-See the `modules`, `modules_async`, and `modules_lwt` examples for
-more details.
+##Abstract module kind
+
+Another way to specify an interface is with a module type where the
+return type is abstract.
+
+{% highlight ocaml %}
+type foo = int * int
+exception Bar of string
+
+module type Abstract =
+sig
+  type 'a _r
+  val baz : foo -> int _r
+end
+
+module type Sync = Abstract with type 'a _r = 'a
+module type Async = Abstract with type 'a _r = ((unit -> 'a) -> unit) -> unit
+module type Lwt = Abstract with type 'a _r = 'a Lwt.t
+{% endhighlight %}
+
+This is convenient because you don't have to repeat all the functions
+if you use more than one kind. It can also be useful if you want to
+abstract over the kind of interface; the `Abstract` module type gives
+you a common signature for all kinds. (For instance, there could be
+just one tracing module that worked with all kinds, although this is
+not currently implemented.)
+
+The return type must be named `_r`, and the specific kinds must be
+declared exactly as shown. In the server implementations you also need
+to include the appropriate `_r` declaration. See the `modules` example.
