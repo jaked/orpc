@@ -30,7 +30,7 @@ let ds_of_ctyp ?allow_abstract ctyp = Parse.parse_typedef ?allow_abstract (Ast.l
 
 Pa_type_conv.add_sig_generator_with_arg "orpc" orpc_params
   (fun ctyp args ->
-     let args = match args with None -> [ Aux; Js_aux; Trace ] | Some args -> args in (* XXX raise error instead? *)
+     let args = match args with None -> [ ] | Some args -> args in (* XXX raise error instead? *)
      let ds = ds_of_ctyp ~allow_abstract:true ctyp in
      let _loc = Ast.loc_of_ctyp ctyp in
      <:sig_item< $list:
@@ -44,7 +44,7 @@ Pa_type_conv.add_sig_generator_with_arg "orpc" orpc_params
 
 Pa_type_conv.add_generator_with_arg "orpc" orpc_params
   (fun ctyp args ->
-     let args = match args with None -> [ Aux; Js_aux; Trace ] | Some args -> args in (* XXX raise error instead? *)
+     let args = match args with None -> [ ] | Some args -> args in (* XXX raise error instead? *)
      let ds = ds_of_ctyp ctyp in
      let _loc = Ast.loc_of_ctyp ctyp in
      <:str_item< $list:

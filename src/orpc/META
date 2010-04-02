@@ -1,5 +1,5 @@
 name="Orpc"
-version="0.2"
+version="0.3"
 description="Orpc support"
 archive(js) = "orpc.cmjsa"
 archive(byte) = "orpc.cma"
