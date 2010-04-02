@@ -1,0 +1,6 @@
+1. Build with `make`
+2. Run server with `./server.byte -conf server.cfg`
+3. Run client with `./client.byte`
+
+You can try the different kinds of interface by editing the bottom of
+client.ml and the `let module M` in server.ml.

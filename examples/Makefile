@@ -1,6 +1,6 @@
 -include ../Makefile.conf
 
-DIRS=matrixmult modules modules_async modules_lwt simple simple_async
+DIRS=matrixmult modules simple simple_async
 
 ifeq ($(ENABLE_OCAMLJS),1)
 DIRS += clicks
