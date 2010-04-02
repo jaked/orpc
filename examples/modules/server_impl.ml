@@ -1,3 +1,8 @@
+let rec lst_map f l =
+  match l with
+    | Protocol.Nil -> Protocol.Nil
+    | Protocol.Cons (a,l) -> Protocol.Cons (f a, lst_map f l)
+
 module Sync =
 struct
   type 'a _r = 'a
@@ -15,13 +20,7 @@ struct
       trd = Array.map (fun e -> e + 1) t;
     }
 
-  let add1_lst l =
-    let rec lst_map f l =
-      match l with
-        | Protocol.Nil -> Protocol.Nil
-        | Protocol.Cons (a,l) -> Protocol.Cons (f a, lst_map f l)
-    in
-    lst_map (fun i -> i + 1) l
+  let add1_lst l = lst_map (fun i -> i + 1) l
 
   let addN ?(n = 1) i = i + n
 
@@ -33,11 +32,6 @@ end
 module Async =
 struct
   type 'a _r = ((unit -> 'a) -> unit) -> unit
-
-  let rec lst_map f l =
-    match l with
-      | Protocol.Nil -> Protocol.Nil
-      | Protocol.Cons (a,l) -> Protocol.Cons (f a, lst_map f l)
 
   let add1 i r = r (fun () -> (i + 1))
 
@@ -68,11 +62,6 @@ struct
   type 'a _r = 'a Lwt.t
 
   open Lwt
-
-  let rec lst_map f l =
-    match l with
-      | Protocol.Nil -> Protocol.Nil
-      | Protocol.Cons (a,l) -> Protocol.Cons (f a, lst_map f l)
 
   let add1 i = return (i + 1)
 
