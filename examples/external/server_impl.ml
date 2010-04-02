@@ -1,7 +1,7 @@
 let rec lst_map f l =
   match l with
-    | Types.Nil -> Types.Nil
-    | Types.Cons (a,l) -> Types.Cons (f a, lst_map f l)
+    | `Nil -> `Nil
+    | `Cons (a,l) -> `Cons (f a, lst_map f l)
 
 module Sync =
 struct

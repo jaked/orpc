@@ -1,7 +1,7 @@
 let rec lst_of_list l =
   match l with
-    | [] -> Types.Nil
-    | a::l -> Types.Cons (a, lst_of_list l)
+    | [] -> `Nil
+    | a::l -> `Cons (a, lst_of_list l)
   
 module Sync =
 struct
