@@ -1,5 +1,0 @@
-val sleep : float -> unit Lwt_event.event
-
-val read : Lwt_unix.file_descr -> string -> int -> int -> int Lwt_event.event
-val write : Lwt_unix.file_descr -> string -> int -> int -> int Lwt_event.event
-val accept: Lwt_unix.file_descr -> (Lwt_unix.file_descr * Unix.sockaddr) Lwt_event.event

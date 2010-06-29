@@ -1,3 +1,0 @@
-This is the bare beginning of a port of Lwt 1.1.0 to run on top of
-Equeue. Most of the code runs unchanged; so far I've implemented just
-Lwt_unix.sleep.

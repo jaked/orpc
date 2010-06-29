@@ -167,13 +167,13 @@ let gen_ml name (typedefs, excs, funcs, mode) =
                             <:expr<
                               C.with_client
                               (fun c ->
-                                let res = Lwt.wait () in
+                                let t, u = Lwt.wait () in
                                 $G.args_apps <:expr< $lid:id ^ "'async"$ c >> args$
                                   (fun r ->
                                     match Orpc.pack_orpc_result r with
-                                      | Orpc.Orpc_success v -> Lwt.wakeup res v
-                                      | Orpc.Orpc_failure e -> Lwt.wakeup_exn res e);
-                                res)
+                                      | Orpc.Orpc_success v -> Lwt.wakeup u v
+                                      | Orpc.Orpc_failure e -> Lwt.wakeup_exn u e);
+                                t)
                             >>)$
                 >> in
 

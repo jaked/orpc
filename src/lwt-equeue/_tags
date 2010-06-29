@@ -1,4 +1,0 @@
-<lwt_equeue.ml*> : pkg_equeue
-<lwt_unix.ml> : pkg_equeue
-<lwt_ssl.ml*> : pkg_ssl
-<lwt_preemptive.ml*> : pkg_threads

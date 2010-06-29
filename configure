@@ -42,7 +42,6 @@ get_path () {
 
 set_defaults () {
     enable_ocamljs=1
-    enable_ssl=0
     enable_type_conv=1
     bindir=`dirname $ocamlc`
     libdir=`ocamlc -where`
@@ -58,14 +57,10 @@ exec_suffix=""
 # Option parsing
 
 ehelp_ocamljs="Enable/disable parts that depend on ocamljs"
-ehelp_ssl="Enable/disable parts that depend on ocaml-ssl"
 ehelp_type_conv="Enable/disable parts that depend on type-conv"
 
 # Which options exist? eoptions for enable/disable, woptions for with/without:
-eoptions="ocamljs ssl type_conv"
-
-# Packages to include anyway:
-requires="unix,equeue,rpc"
+eoptions="ocamljs type_conv"
 
 check_library () {
     # $1: the name of the library (findlib)
@@ -225,22 +220,6 @@ if [ $enable_ocamljs -gt 0 ]; then
 fi
 
 ######################################################################
-# Check that ocaml-ssl is available:
-
-if [ $enable_ssl -gt 0 ]; then
-    printf "%s" "Checking for ocaml-ssl... "
-    if check_library ssl; then
-        echo "found"
-    else
-        echo "not found"
-        echo "ocaml-ssl is required for -enable-ssl."
-        echo "Try -disable-ssl, or get ocaml-ssl from:"
-        echo "http://savonet.sourceforge.net/"
-        exit 1
-    fi
-fi
-
-######################################################################
 # Check that type-conv is available:
 
 if [ $enable_type_conv -gt 0 ]; then
@@ -264,7 +243,7 @@ echo "Effective options:"
 print_options
 echo
 
-pkglist="generator orpc orpc-onc lwt-equeue"
+pkglist="generator orpc orpc-onc"
 
 if [ $enable_ocamljs -gt 0 ]; then
     pkglist="$pkglist orpc-js-client orpc-js-server"
@@ -282,9 +261,6 @@ VERSION = $version
 # The packages to build in the right order:
 PKGLIST = $pkglist
 
-# Required packages (findlib):
-REQUIRES = $requires
-
 # Where binaries are installed:
 BINDIR = $bindir
 
@@ -292,7 +268,6 @@ BINDIR = $bindir
 LIBDIR = $libdir
 
 ENABLE_OCAMLJS = $enable_ocamljs
-ENABLE_SSL = $enable_ssl
 ENABLE_TYPE_CONV = $enable_type_conv
 _EOF_
 
