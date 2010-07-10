@@ -63,31 +63,33 @@ let rec parse_type t =
 
     | <:ctyp@loc< { $fs$ } >> ->
       let rec fields = function
-        | <:ctyp< $t1$; $t2$ >> -> fields t1 @ fields t2
-        | <:ctyp< $lid:id$ : mutable $t$ >> -> [ { f_id = id; f_mut = true; f_typ = parse_type t } ]
-        | <:ctyp< $lid:id$ : $t$ >> -> [ { f_id = id; f_mut = false; f_typ = parse_type t } ]
+        | TySem (_loc, t1, t2) -> fields t1 @ fields t2 (* <:ctyp< $t1$; $t2$ >> has extra TySum in 3.12 ?? *)
+        | TyCol (_loc, <:ctyp< $lid:id$ >>, <:ctyp< mutable $t$ >>) -> [ { f_id = id; f_mut = true; f_typ = parse_type t } ]
+(*        | <:ctyp< $lid:id$ : mutable $t$ >> -> [ { f_id = id; f_mut = true; f_typ = parse_type t } ] broken in 3.12 *)
+        | TyCol (_loc, <:ctyp< $lid:id$ >>, t) -> [ { f_id = id; f_mut = false; f_typ = parse_type t } ]
+(*        | <:ctyp< $lid:id$ : $t$ >> -> [ { f_id = id; f_mut = false; f_typ = parse_type t } ] broken in 3.12 *)
         | t -> ctyp_error t "expected TySem or TyCol" in
       Record (loc, fields fs)
 
     (* syntax for TySum? *)
     | TySum (loc, ams) ->
         let rec arms = function
-          | <:ctyp< $t1$ | $t2$ >> -> arms t1 @ arms t2
-          | <:ctyp< $uid:id$ of $t$ >> ->
+          | TyOr (_, t1, t2) -> arms t1 @ arms t2 (* <:ctyp< $t1$ | $t2$ >> has extra TySum in 3.12 *)
+          | TyOf (_, TyId (_, IdUid (_, id)), t) -> (* <:ctyp< $uid:id$ of $t$ >> has extra TySum in 3.12 *)
               let rec parts = function
-                | <:ctyp< $t1$ and $t2$ >> -> parts t1 @ parts t2
+                | TyAnd (_, t1, t2) -> parts t1 @ parts t2 (* <:ctyp< $t1$ and $t2$ >> has extra TySum in 3.12 ?? *)
                 | t -> [ parse_type t ] in
               [ id, parts t ]
-          | <:ctyp< $uid:id$ >> -> [ id, [] ]
+          | TyId (_, IdUid (_, id)) -> [ id, [] ] (* <:ctyp< $uid:id$ >> has extra TySum in 3.12 *)
           | t -> ctyp_error t "expected TyOr, TyOf, or TyId" in
         Variant (loc, arms ams)
 
     | TyVrnEq (loc, ams) | TyVrnInf (loc, ams) | TyVrnSup (loc, ams) ->
         let rec arms = function
-          | <:ctyp< $t1$ | $t2$ >> -> arms t1 @ arms t2
+          | TyOr (_, t1, t2) -> arms t1 @ arms t2 (* <:ctyp< $t1$ | $t2$ >> has extra TySum in 3.12 *)
           | <:ctyp< `$id$ of $t$ >> ->
               let rec parts = function
-                | <:ctyp< $t1$ and $t2$ >> -> parts t1 @ parts t2
+                | TyAnd (_, t1, t2) -> parts t1 @ parts t2 (* <:ctyp< $t1$ and $t2$ >> has extra TySum in 3.12 ?? *)
                 | t -> [ parse_type t ] in
               [ Pv_of (id, parts t) ]
           | <:ctyp< `$id$ >> -> [ Pv_of (id, []) ]
@@ -99,15 +101,15 @@ let rec parse_type t =
           | _ -> assert false in
         PolyVar (loc, kind, arms ams)
 
-    | <:ctyp@loc< $t$ array >> -> Array (loc, parse_type t)
-    | <:ctyp@loc< $t$ list >> -> List (loc, parse_type t)
-    | <:ctyp@loc< $t$ option >> -> Option (loc, parse_type t)
-    | <:ctyp@loc< $t$ ref >> -> Ref (loc, parse_type t)
+    | TyApp (loc, <:ctyp< array >>, t) -> Array (loc, parse_type t) (* <:ctyp@loc< $t$ array >> broken in 3.12 *)
+    | TyApp (loc, <:ctyp< list >>, t) -> List (loc, parse_type t) (* <:ctyp@loc< $t$ list >> broken in 3.12 *)
+    | TyApp (loc, <:ctyp< option >>, t) -> Option (loc, parse_type t) (* <:ctyp@loc< $t$ option >> broken in 3.12 *)
+    | TyApp (loc, <:ctyp< ref >>, t) -> Ref (loc, parse_type t) (* <:ctyp@loc< $t$ ref >> broken 3.12 *)
 
-    | <:ctyp@loc< $_$ $_$ >> ->
+    | TyApp (loc, _, _) -> (* <:ctyp@loc< $_$ $_$ >> broken in 3.12 *)
         let rec apps args = function
             (* TyApp is used for both tupled and nested type application *)
-          | <:ctyp< $t2$ $t1$ >> -> apps (parse_type t2 :: args) t1
+          | TyApp (_, t1, t2) -> apps (parse_type t2 :: args) t1 (* <:ctyp< $t2$ $t1$ >> broken in 3.12 *)
 
           | <:ctyp< $id:id$ >> ->
               let (mdl, id) = parse_ident id in
@@ -116,7 +118,7 @@ let rec parse_type t =
           | t -> ctyp_error t "expected TyApp or TyId" in
         apps [] t
 
-    | <:ctyp@loc< $t1$ -> $t2$ >> -> Arrow (loc, parse_type t1, parse_type t2)
+    | TyArr (loc, t1, t2) -> Arrow (loc, parse_type t1, parse_type t2) (* <:ctyp@loc< $t1$ -> $t2$ >> broken in 3.12 *)
 
     | t -> ctyp_error t "unsupported type"
 
@@ -146,12 +148,12 @@ let parse_typedef ?(allow_abstract=false) loc t =
 
 let parse_exception loc t =
   match t with
-    | <:ctyp< $uid:id$ of $t$ >> ->
+    | TyOf (_, TyId (_, IdUid (_, id)), t) -> (* <:ctyp< $uid:id$ of $t$ >> has extra TySum in 3.12 *)
       let rec parts = function
-        | <:ctyp< $t1$ and $t2$ >> -> parts t1 @ parts t2
+        | TyAnd (_, t1, t2) -> parts t1 @ parts t2 (* <:ctyp< $t1$ and $t2$ >> has extra TySum in 3.12 ?? *)
         | t -> [ parse_type t ] in
       (loc, id, parts t )
-    | <:ctyp< $uid:id$ >> -> (loc, id, [])
+    | TyId (_, IdUid (_, id)) -> (loc, id, []) (* <:ctyp< $uid:id$ >> has extra TySum in 3.12 *)
     | t -> ctyp_error t "expected TyOr, TyOf, or TyId"
 
 let parse_val loc id t =

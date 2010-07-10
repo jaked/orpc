@@ -58,7 +58,8 @@ let gen_sig_typedef ?(qual_id=G.id) ds =
             val $lid:long_of_ id$ :
               $G.arrows
                 (List.map (fun v -> <:ctyp< '$lid:v$ -> Xdr.xdr_value >>) vars)
-                <:ctyp< $appd$ -> Xdr.xdr_value >>$
+                (TyArr (_loc, appd, <:ctyp< Xdr.xdr_value >>))
+                (* <:ctyp< $appd$ -> Xdr.xdr_value >> broken in 3.12 *)$
 
             val $lid:long_xdr id$ :
               $G.arrows
