@@ -1,3 +1,4 @@
+<parse.ml> or <gen_common.ml> : pkg_camlp4.quotations.r
 <*.ml*> : syntax_camlp4o,pkg_camlp4.quotations.o,use_camlp4_full
 <pa_orpc_with.ml*> : pkg_type-conv, pkg_camlp4.extend
 <*.{byte,native}> : pkg_dynlink,use_camlp4_full

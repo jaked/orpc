@@ -46,9 +46,9 @@ let string_of_kind = function
 
 let _r_of_kind = function
   | Ik_abstract -> assert false
-  | Sync -> <:str_item< type 'a _r = 'a >>
-  | Async -> <:str_item< type 'a _r = ((unit -> 'a) -> unit) -> unit >>
-  | Lwt -> <:str_item< type 'a _r = 'a Lwt.t >>
+  | Sync -> <:str_item< type _r 'a = 'a >>
+  | Async -> <:str_item< type _r 'a = ((unit -> 'a) -> unit) -> unit >>
+  | Lwt -> <:str_item< type _r 'a = Lwt.t 'a >>
 
 let vars l =
   let ps = List.mapi (fun _ i -> <:patt< $lid:"x" ^ string_of_int i$ >>) l in
@@ -60,13 +60,13 @@ let tvars vars =
 
 let arrows ts t =
   List.fold_right
-    (fun t a -> Ast.TyArr (_loc, t, a)) (* <:ctyp< $t$ -> $a$ >> broken in 3.12 *)
+    (fun t a -> <:ctyp< $t$ -> $a$ >>)
     ts
     t
 
 let tapps t ts =
   List.fold_left
-    (fun t t' -> Ast.TyApp (_loc, t, t')) (* <:ctyp< $t'$ $t$ >> broken in 3.12 *)
+    (fun t t' -> <:ctyp< $t$ $t'$ >>)
     t
     ts
 
@@ -94,7 +94,7 @@ let papps p ps =
 
 let conses es =
   List.fold_right
-    (fun e cs -> <:expr< $e$ :: $cs$ >>)
+    (fun e cs -> <:expr< [ $e$ :: $cs$ ] >>)
     es
   <:expr< [] >>
 
@@ -165,10 +165,8 @@ let gen_type qual_id t =
           List.map
             (fun f ->
               if f.f_mut
-              (* then <:ctyp< $lid:f.f_id$ : mutable $gt f.f_typ$ >> broken in 3.12 *)
-              then Ast.TyCol (_loc, <:ctyp< $lid:f.f_id$ >>, <:ctyp< mutable $gt f.f_typ$ >>)
-              (* else <:ctyp< $lid:f.f_id$ : $gt f.f_typ$ >>) broken in 3.12 *)
-              else Ast.TyCol (_loc, <:ctyp< $lid:f.f_id$ >>, gt f.f_typ))
+              then <:ctyp< $lid:f.f_id$ : mutable $gt f.f_typ$ >>
+              else <:ctyp< $lid:f.f_id$ : $gt f.f_typ$ >>)
             fields in
         <:ctyp< { $tySem_of_list fields$ } >>
 
@@ -178,9 +176,8 @@ let gen_type qual_id t =
             (fun (id, ts) ->
               let parts = List.map gt ts in
               match parts with
-                | [] -> TyId (_loc, IdUid (_loc, id)) (* <:ctyp< $uid:id$ >> has extra TySum in 3.12 *)
-                | _ -> TyOf (_loc, TyId (_loc, IdUid (_loc, id)), tyAnd_of_list parts))
-            (* <:ctyp< $uid:id$ of $tyAnd_of_list parts$ >> has extra TySum in 3.12 *)
+                | [] -> <:ctyp< $uid:id$ >>
+                | _ -> <:ctyp< $uid:id$ of $tyAnd_of_list parts$ >>)
             arms in
         TySum (_loc, tyOr_of_list arms)
 
@@ -202,14 +199,14 @@ let gen_type qual_id t =
           | Pv_inf -> TyVrnInf (_loc, arms)
         end
 
-    | Array (_, t) -> Ast.TyApp (_loc, <:ctyp< array >>, gt t) (* <:ctyp< $gt t$ array >> broken in 3.12 *)
-    | List (_, t) -> Ast.TyApp (_loc, <:ctyp< list >>, gt t) (* <:ctyp< $gt t$ list >> broken in 3.12 *)
-    | Option (_, t) -> Ast.TyApp (_loc, <:ctyp< option >>, gt t) (* <:ctyp< $gt t$ option >> broken in 3.12 *)
-    | Ref (_, t) -> Ast.TyApp (_loc, <:ctyp< ref >>, gt t) (* <:ctyp< $gt t$ ref >> broken in 3.12 *)
+    | Array (_, t) -> <:ctyp< array $gt t$ >>
+    | List (_, t) -> <:ctyp< list $gt t$ >>
+    | Option (_, t) -> <:ctyp< option $gt t$ >>
+    | Ref (_, t) -> <:ctyp< ref $gt t$ >>
 
     | Apply (_, mdl, id, args) ->
         List.fold_left
-          (fun t a -> Ast.TyApp (_loc, t, gt a)) (* <:ctyp< $gt a$ $t$ >> broken in 3.12 *)
+          (fun t a -> <:ctyp< $t$ $gt a$ >>)
           (match mdl with
             | [] -> <:ctyp< $id:qual_id id$ >>
             | _ -> <:ctyp< $id:module_id mdl id$ >>)
