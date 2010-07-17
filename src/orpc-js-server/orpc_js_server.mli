@@ -37,7 +37,18 @@ val to_string : obj -> string
 val to_list : (obj -> 'a) -> obj -> 'a list
 val to_option : (obj -> 'a) -> obj -> 'a option
 
-val handler : (string * (obj -> Obj.t)) list -> (string -> string)
-val service : (string -> string) -> Netcgi_types.cgi_activation Nethttpd_services.dynamic_service
-
 val set_debug : (string -> unit) -> unit
+
+module type Monad =
+sig
+  type 'a t
+  val return : 'a -> 'a t
+  val bind : 'a t -> ('a -> 'b t) -> 'b t
+end
+
+module Sync : Monad with type 'a t = 'a
+module Async : Monad with type 'a t = ((unit -> 'a) -> unit) -> unit
+
+module Handler (M : Monad) : sig
+  val handler : (string * (obj -> Obj.t M.t)) list -> (string -> string M.t)
+end

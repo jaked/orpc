@@ -1,6 +1,6 @@
 name="Orpc-js-server"
 version="0.3"
 description="Orpc-js support for server"
-requires = "nethttpd,ulex,jslib,orpc"
+requires = "ulex,jslib,orpc"
 archive(byte) = "orpc-js-server.cma"
 archive(native) = "orpc-js-server.cmxa"

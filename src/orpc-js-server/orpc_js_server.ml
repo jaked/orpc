@@ -192,33 +192,36 @@ let unserialize s =
     | Teoi -> o
     | _ -> invalid "serialized heap object"
 
-let handler procs body =
-  let (proc_name, arg) =
-    match unserialize body with
-      | Oblock (0, [| Ostring proc_name; arg |]) -> proc_name, arg
-      | _ -> raise (Invalid_argument "bad request") in
-  let proc =
-    try List.assoc proc_name procs
-    with Not_found -> raise (Invalid_argument ("bad request " ^ proc_name)) in
-  serialize (proc arg)
+module type Monad =
+sig
+  type 'a t
+  val return : 'a -> 'a t
+  val bind : 'a t -> ('a -> 'b t) -> 'b t
+end
 
-let service handler =
-  let process (cgi : Netcgi_types.cgi_activation) =
-    let res =
-      try handler (cgi#argument "BODY")#value
-      with Not_found -> raise (Invalid_argument "bad_request") in
-    (* XXX handle gzip *)
-    cgi#set_header
-      ~content_type:"text/plain; charset=utf-8"
-      ~cache:`No_cache
-      ();
-    cgi#output#output_string res;
-    cgi#output#commit_work () in
+module Sync =
+struct
+  type 'a t = 'a
+  let return x = x
+  let bind x f = f x
+end
 
-  {
-    Nethttpd_services.dyn_handler = (fun _ -> process);
-    dyn_activation = Nethttpd_services.std_activation `Std_activation_unbuffered;
-    dyn_uri = None;
-    dyn_translator = (fun _ -> "");
-    dyn_accept_all_conditionals = false;
-  }
+module Async =
+struct
+  type 'a t = ((unit -> 'a) -> unit) -> unit
+  let return x = fun f -> f (fun () -> x)
+  let bind x f = fun rf -> x (fun r -> f (r ()) rf)
+end
+
+module Handler (M : Monad) =
+struct
+  let handler procs body =
+    let (proc_name, arg) =
+      match unserialize body with
+        | Oblock (0, [| Ostring proc_name; arg |]) -> proc_name, arg
+        | _ -> raise (Invalid_argument "bad request") in
+    let proc =
+      try List.assoc proc_name procs
+      with Not_found -> raise (Invalid_argument ("bad request " ^ proc_name)) in
+    M.bind (proc arg) (fun s -> M.return (serialize s))
+end
