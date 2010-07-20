@@ -223,7 +223,7 @@ let rec gen_to qual_id t x =
     | Option (_loc, t) ->
         <:expr< Orpc_onc.to_option (fun x -> $gen_to t <:expr< x >>$) $x$ >>
 
-    | Ref (_loc, t) -> gen_to t <:expr< ! $x$ >>
+    | Ref (_loc, t) -> <:expr< ref $gen_to t x$ >>
 
     | Apply (_loc, mdl, id, args) ->
         <:expr<
@@ -323,8 +323,7 @@ let rec gen_of qual_id t v =
     | Option (_loc, t) ->
         <:expr< Orpc_onc.of_option (fun v -> $gen_of t <:expr< v >>$) $v$ >>
 
-    | Ref (_loc, t) ->
-        <:expr< ref ($gen_of t v$) >>
+    | Ref (_loc, t) -> gen_of t <:expr< ! $v$ >>
 
     | Apply (_loc, mdl, id, args) ->
         <:expr<
