@@ -3,7 +3,7 @@
 <clicks.ml> : pkg_lwt,pkg_orpc-js-client,pkg_dom
 <clicks.js> : pkg_lwt,pkg_orpc-js-client,pkg_dom
 
-<proto_js_srv.ml*> : pkg_nethttpd,pkg_orpc-js-server
+<proto_js_srv.ml*> : pkg_lwt,pkg_nethttpd,pkg_orpc-js-server
 <proto_js_aux.ml*> : pkg_orpc-js-server
 <server.ml> : pkg_nethttpd,pkg_netplex,pkg_orpc-js-server
-<server.byte> : pkg_nethttpd,pkg_netplex,pkg_orpc-js-server
+<server.byte> : pkg_lwt,pkg_nethttpd,pkg_netplex,pkg_orpc-js-server

@@ -1,3 +1,24 @@
+let service handler =
+  let process (cgi : Netcgi_types.cgi_activation) =
+    let res =
+      try handler (cgi#argument "BODY")#value
+      with Not_found -> raise (Invalid_argument "bad_request") in
+    (* XXX handle gzip *)
+    cgi#set_header
+      ~content_type:"text/plain; charset=utf-8"
+      ~cache:`No_cache
+      ();
+    cgi#output#output_string res;
+    cgi#output#commit_work () in
+
+  {
+    Nethttpd_services.dyn_handler = (fun _ -> process);
+    dyn_activation = Nethttpd_services.std_activation `Std_activation_unbuffered;
+    dyn_uri = None;
+    dyn_translator = (fun _ -> "");
+    dyn_accept_all_conditionals = false;
+  }
+
 let start() =
   let (opt_list, cmdline_cfg) = Netplex_main.args() in
 
@@ -22,7 +43,7 @@ let start() =
   let factories =
     [ Nethttpd_plex.nethttpd_factory
         ~config_cgi
-        ~handlers:["clicks", Orpc_js_server.service M.handler]
+        ~handlers:["clicks", service M.handler]
         ();
     ]
   in
