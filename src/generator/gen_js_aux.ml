@@ -69,30 +69,10 @@ let gen_sig_typedef ?(qual_id=G.id) ds =
               >>)
       ds$ >>
 
-let gen_mli name (typedefs, excs, funcs, mode) =
+let gen_mli name (typedefs, excs, funcs, kinds) =
 
   let has_excs = excs <> [] in
-  let qual_id = G.qual_id name mode in
-
-  let gen_typedef_typs ds =
-    <:sig_item<
-      type
-        $list:
-          List.map
-            (fun { td_vars = vars; td_id = id; td_typ = t; td_eq = eq } ->
-              let t = G.gen_type qual_id t in
-              let t =
-                match eq with
-                  | Some eq -> TyMan (_loc, TyId (_loc, eq), t)
-                  | None -> t in
-              TyDcl (_loc, id, G.tvars vars, t, []))
-            ds$
-    >> in
-
-  let gen_exc (_, id, ts) =
-    <:sig_item<
-      exception $uid:id$ of $tyAnd_of_list (List.map (G.gen_type qual_id) ts)$
-    >> in
+  let qual_id = G.qual_id name in
 
   let gen_func (_, id, args, res) =
     let arg =
@@ -116,13 +96,6 @@ let gen_mli name (typedefs, excs, funcs, mode) =
     >> in
 
   <:sig_item<
-    $match mode with
-      | Simple ->
-          <:sig_item<
-            $list:List.map gen_typedef_typs typedefs$ ;;
-            $list:List.map gen_exc excs$ ;;
-          >>
-      | _ -> <:sig_item< >>$ ;;
     $list:List.map (gen_sig_typedef ~qual_id) typedefs$ ;;
     $if has_excs
      then
@@ -332,36 +305,15 @@ let gen_str_typedef ?(qual_id=G.id) stub ds =
           ds$
   >>
 
-let gen_ml name (typedefs, excs, funcs, mode) =
+let gen_ml name (typedefs, excs, funcs, kinds) =
   let has_excs = excs <> [] in
-  let qual_id = G.qual_id name mode in
+  let qual_id = G.qual_id name in
 
   let gen_of_exc t v =
     match gen_of qual_id t v with
       | ExMat (loc, e, cases) ->
           ExMat (loc, e, McOr(_loc, cases, <:match_case< _ -> raise $v$ >>))
       | _ -> assert false in
-
-  let gen_typedef_typs ds =
-    <:str_item<
-      type
-        $list:
-          List.map
-            (fun { td_vars = vars; td_id = id; td_typ = t; td_eq = eq } ->
-              let vars = List.map (fun v -> <:ctyp< '$lid:v$ >>) vars in
-              let t = G.gen_type qual_id t in
-              let t =
-                match eq with
-                  | Some eq -> TyMan (_loc, TyId (_loc, eq), t)
-                  | None -> t in
-              TyDcl (_loc, id, vars, t, []))
-          ds$
-    >> in
-
-  let gen_exc (_, id, ts) =
-    <:str_item<
-      exception $uid:id$ of $tyAnd_of_list (List.map (G.gen_type qual_id) ts)$
-    >> in
 
   let gen_func (_, id, args, res) =
     let arg =
@@ -384,13 +336,6 @@ let gen_ml name (typedefs, excs, funcs, mode) =
     >> in
 
   <:str_item<
-    $match mode with
-      | Simple ->
-          <:str_item<
-            $list:List.map gen_typedef_typs typedefs$ ;;
-            $list:List.map gen_exc excs$ ;;
-          >>
-      | _ -> <:str_item< >>$ ;;
     $list:List.map (gen_str_typedef ~qual_id false) typedefs$ ;;
     $if has_excs
      then

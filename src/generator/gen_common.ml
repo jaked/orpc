@@ -112,33 +112,18 @@ let module_id uids lid =
   Ast.idAcc_of_list
     (List.map (fun uid -> <:ident< $uid:uid$ >>) uids @ [ <:ident< $lid:lid$ >> ])
 
-let qual_id name mode id =
-  if is_uppercase id.[0]
-  then
-    match mode with
-      | Simple -> <:ident< $uid:id$ >>
-      | Modules _ ->
-          match id with
-            | "exn" -> <:ident< exn >>
-            | _ -> <:ident< $uid:name$.$uid:id$ >>
-  else
-    match mode with
-      | Simple -> <:ident< $lid:id$ >>
-      | Modules _ ->
-          match id with
-            | "exn" -> <:ident< exn >>
-            | _ -> <:ident< $uid:name$.$lid:id$ >>
+let qual_id name id =
+  match id with
+    | "exn" -> <:ident< exn >>
+    | _ ->
+        if is_uppercase id.[0]
+        then <:ident< $uid:name$.$uid:id$ >>
+        else <:ident< $uid:name$.$lid:id$ >>
 
-let qual_id_aux name mode id =
+let qual_id_aux name id =
   if is_uppercase id.[0]
-  then
-    match mode with
-      | Simple -> <:ident< $uid:name ^ "_aux"$.$uid:id$ >>
-      | Modules _ -> <:ident< $uid:name$.$uid:id$ >>
-  else
-    match mode with
-      | Simple -> <:ident< $uid:name ^ "_aux"$.$lid:id$ >>
-      | Modules _ -> <:ident< $uid:name$.$lid:id$ >>
+  then <:ident< $uid:name$.$uid:id$ >>
+  else <:ident< $uid:name$.$lid:id$ >>
 
 let gen_type qual_id t =
 

@@ -172,7 +172,6 @@ let parse_val loc id t =
 type s = {
   typedefs : typedefs list;
   exceptions : exc list;
-  funcs : func list;
   module_types : module_type list;
 }
 
@@ -182,7 +181,6 @@ let rec parse_sig_items i a =
     | SgSem (_, i1, i2) -> parse_sig_items i1 (parse_sig_items i2 a)
     | SgTyp (loc, t) -> { a with typedefs = parse_typedef loc t :: a.typedefs }
     | SgExc (loc, t) -> { a with exceptions = parse_exception loc t :: a.exceptions }
-    | SgVal (loc, id, t) -> { a with funcs = parse_val loc id t :: a.funcs }
     | SgMty (loc, id, MtSig (_, i)) -> { a with module_types = parse_module_type loc id i :: a.module_types }
     | <:sig_item@loc< module type Sync = Abstract with type _r 'a = 'a >> ->
         { a with module_types = { mt_loc = loc; mt_kind = Sync; mt_funcs = With } :: a.module_types }
@@ -190,7 +188,7 @@ let rec parse_sig_items i a =
         { a with module_types = { mt_loc = loc; mt_kind = Async; mt_funcs = With } :: a.module_types }
     | <:sig_item@loc< module type Lwt = Abstract with type _r 'a = Lwt.t 'a >> ->
         { a with module_types = { mt_loc = loc; mt_kind = Lwt; mt_funcs = With } :: a.module_types }
-    | _ -> sig_item_error i "expected type, function declaration, or module type"
+    | _ -> sig_item_error i "expected type, exception, or module type"
 
 and parse_module_type loc id i =
   let seen_return_type = ref false in
@@ -225,13 +223,9 @@ and parse_module_type loc id i =
   mt
 
 let parse_interface i =
-  let s = { typedefs = []; exceptions = []; funcs = []; module_types = [] } in
+  let s = { typedefs = []; exceptions = []; module_types = [] } in
   let s = parse_sig_items i s in
-  let { typedefs = typedefs; exceptions = excs; funcs = funcs; module_types = mts } = s in
-  match s with
-    | { funcs = _::_; module_types = [] } -> (typedefs, excs, funcs, mts) (* simple interface *)
-    | { funcs = []; module_types = _::_ } ->
-        if List.for_all (function { mt_kind = Ik_abstract } -> true | _ -> false) mts
-        then loc_error Loc.ghost "must declare at least one non-Abstract module";
-        (typedefs, excs, funcs, mts) (* modules interface *)
-    | _ -> loc_error Loc.ghost "expected simple interface or modules interface"
+  let { typedefs = typedefs; exceptions = excs; module_types = mts } = s in
+  if List.for_all (function { mt_kind = Ik_abstract } -> true | _ -> false) mts
+  then loc_error Loc.ghost "must declare at least one non-Abstract module type";
+  (typedefs, excs, mts)

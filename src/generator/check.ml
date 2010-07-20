@@ -324,29 +324,21 @@ let expand_polyvars_func typedefs (_loc, id, args, ret) =
     args,
   ep ret)
 
-let check_interface (typedefs, excs, funcs, mts) =
-  let funcs =
-    match funcs with
-      | [] -> get_module_type_funcs mts
-      | _ -> funcs in
+let check_interface (typedefs, excs, mts) =
+  let funcs = get_module_type_funcs mts in
 
   (* XXX this doesn't check that typedefs precede their uses in excs/funcs *)
   let ids = check_typedefs [] typedefs in
   check_excs ids excs;
   check_funcs ids [] funcs;
 
-  let mode =
-    match mts with
-      | [] -> Simple
-      | _ ->
-          let mts_noabs = List.filter (function { mt_kind = Ik_abstract } -> false | _ -> true) mts in
-          let has_abstract = mts_noabs <> mts in
-          List.iter (check_module_type_funcs has_abstract funcs) mts_noabs;
-          let kinds = List.map (fun { mt_kind = kind } -> kind) mts_noabs in
-          Modules kinds in
+  let mts_noabs = List.filter (function { mt_kind = Ik_abstract } -> false | _ -> true) mts in
+  let has_abstract = mts_noabs <> mts in
+  List.iter (check_module_type_funcs has_abstract funcs) mts_noabs;
+  let kinds = List.map (fun { mt_kind = kind } -> kind) mts_noabs in
 
   let typedefs = List.map (List.map (expand_polyvars_typedef typedefs)) typedefs in
   let excs = List.map (expand_polyvars_exc typedefs) excs in
   let funcs = List.map (expand_polyvars_func typedefs) funcs in
 
-  (typedefs, excs, funcs, mode)
+  (typedefs, excs, funcs, kinds)

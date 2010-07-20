@@ -28,36 +28,33 @@ module G = Gen_common
 
 let _loc = Camlp4.PreCast.Loc.ghost
 
-let gen_mli name (typedefs, excs, funcs, mode) =
+let gen_mli name (typedefs, excs, funcs, kinds) =
 
   let modules =
-    match mode with
-      | Simple -> failwith "simple mode not supported for js_srv"
-      | Modules kinds ->
-          List.map
-            (fun kind ->
-               let mt, monad =
-                 match kind with
-                   | Ik_abstract -> assert false
-                   | Sync -> "Sync", <:ident< Orpc_js_server.Sync >>
-                   | Async -> "Async", <:ident< Orpc_js_server.Async >>
-                   | Lwt -> "Lwt", <:ident< Lwt >> in
-               <:sig_item<
-                 module $uid:mt$ : functor (A : $uid:name$.$uid:mt$) ->
-                 sig
-                   val handler : string -> string $id:monad$.t
-                 end
-               >>)
-            kinds in
+    List.map
+      (fun kind ->
+         let mt, monad =
+           match kind with
+             | Ik_abstract -> assert false
+             | Sync -> "Sync", <:ident< Orpc_js_server.Sync >>
+             | Async -> "Async", <:ident< Orpc_js_server.Async >>
+             | Lwt -> "Lwt", <:ident< Lwt >> in
+         <:sig_item<
+           module $uid:mt$ : functor (A : $uid:name$.$uid:mt$) ->
+           sig
+             val handler : string -> string $id:monad$.t
+           end
+         >>)
+      kinds in
 
   <:sig_item< $list:modules$ >>
 
 
 
-let gen_ml name (typedefs, excs, funcs, mode) =
+let gen_ml name (typedefs, excs, funcs, kinds) =
 
   let has_excs = excs <> [] in
-  let qual_id = G.qual_id_aux name mode in
+  let qual_id = G.qual_id_aux name in
 
   let aux_id id = <:ident< $uid:name ^ "_js_aux"$ . $lid:id$ >> in
   let to_arg id = aux_id ("to_" ^ id ^ "'arg") in
@@ -119,25 +116,22 @@ let gen_ml name (typedefs, excs, funcs, mode) =
     >> in
 
   let modules =
-    match mode with
-      | Simple -> failwith "simple mode not supported for js_srv"
-      | Modules kinds ->
-          List.map
-            (fun kind ->
-               let mt, monad, func =
-                 match kind with
-                   | Ik_abstract -> assert false
-                   | Sync -> "Sync", <:ident< Orpc_js_server.Sync >>, sync_func
-                   | Async -> "Async", <:ident< Orpc_js_server.Async >>, async_func
-                   | Lwt -> "Lwt", <:ident< Lwt >>, lwt_func in
-               <:str_item<
-                 module $uid:mt$ (A : $uid:name$.$uid:mt$) =
-                 struct
-                   module H = Orpc_js_server.Handler($id:monad$)
-                   let handler = H.handler $G.conses (List.map func funcs)$
-                 end
-               >>)
-            kinds in
+    List.map
+      (fun kind ->
+         let mt, monad, func =
+           match kind with
+             | Ik_abstract -> assert false
+             | Sync -> "Sync", <:ident< Orpc_js_server.Sync >>, sync_func
+             | Async -> "Async", <:ident< Orpc_js_server.Async >>, async_func
+             | Lwt -> "Lwt", <:ident< Lwt >>, lwt_func in
+         <:str_item<
+           module $uid:mt$ (A : $uid:name$.$uid:mt$) =
+           struct
+             module H = Orpc_js_server.Handler($id:monad$)
+             let handler = H.handler $G.conses (List.map func funcs)$
+           end
+         >>)
+      kinds in
 
   let pack_orpc_result () =
     let mc (_,id,ts) =

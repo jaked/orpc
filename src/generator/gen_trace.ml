@@ -47,9 +47,9 @@ let gen_sig_typedef ?(qual_id=G.id) ds =
       ds in
   sgSem_of_list is
 
-let gen_module_type name (typedefs, _, funcs, mode) =
+let gen_module_type name (typedefs, _, funcs, kinds) =
 
-  let qual_id = G.qual_id_aux name mode in
+  let qual_id = G.qual_id_aux name in
 
   let gen_func  (_, id, args, res) =
     <:sig_item<
@@ -64,25 +64,22 @@ let gen_module_type name (typedefs, _, funcs, mode) =
     val $lid:pp_ "exn'reply"$ : Format.formatter -> exn -> unit;;
   >>
 
-let gen_mli name (typedefs, excs, funcs, mode) =
+let gen_mli name (typedefs, excs, funcs, kinds) =
 
   let modules =
-    match mode with
-      | Simple -> []
-      | Modules kinds ->
-          List.map
-            (fun kind ->
-              let mt = G.string_of_kind kind in
-              <:sig_item<
-                module $uid:mt ^ "_pp"$ (P : Pp) (T : Orpc_pp.Trace) (A : $uid:name$.$uid:mt$) : $uid:name$.$uid:mt$
-                module $uid:mt$ (T : Orpc_pp.Trace) (A : $uid:name$.$uid:mt$) : $uid:name$.$uid:mt$
-              >>)
-            kinds in
+    List.map
+      (fun kind ->
+        let mt = G.string_of_kind kind in
+        <:sig_item<
+          module $uid:mt ^ "_pp"$ (P : Pp) (T : Orpc_pp.Trace) (A : $uid:name$.$uid:mt$) : $uid:name$.$uid:mt$
+          module $uid:mt$ (T : Orpc_pp.Trace) (A : $uid:name$.$uid:mt$) : $uid:name$.$uid:mt$
+        >>)
+      kinds in
 
   <:sig_item<
     module type Pp =
     sig
-      $gen_module_type name (typedefs, excs, funcs, mode)$
+      $gen_module_type name (typedefs, excs, funcs, kinds)$
     end
 
     module Pp_pp (P : Pp) : Pp ;;
@@ -247,9 +244,9 @@ let gen_str_typedef ?(qual_id=G.id) ?(rec_mod=true) stub ds =
       ds in
   <:str_item< let rec $list:es$ >>
 
-let gen_ml name (typedefs, excs, funcs, mode) =
+let gen_ml name (typedefs, excs, funcs, kinds) =
 
-  let qual_id = G.qual_id_aux name mode in
+  let qual_id = G.qual_id_aux name in
 
   let gen_pp_exc t =
     match gen_format qual_id true t with
@@ -353,15 +350,12 @@ let gen_ml name (typedefs, excs, funcs, mode) =
       module $uid:mt$ = $uid:mt ^ "_pp"$ (Pp)
     >> in
 
-  let modules =
-    match mode with
-      | Simple -> []
-      | Modules kinds -> List.map gen_module kinds in
+  let modules = List.map gen_module kinds in
 
   <:str_item<
     module type Pp =
     sig
-      $gen_module_type name (typedefs, excs, funcs, mode)$
+      $gen_module_type name (typedefs, excs, funcs, kinds)$
     end
 
     module Pp_pp (P : Pp) : Pp =

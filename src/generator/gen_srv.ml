@@ -28,27 +28,24 @@ module G = Gen_common
 
 let _loc = Camlp4.PreCast.Loc.ghost
 
-let gen_mli name (typedefs, excs, funcs, mode) =
+let gen_mli name (typedefs, excs, funcs, kinds) =
 
-  let qual_id = G.qual_id_aux name mode in
+  let qual_id = G.qual_id_aux name in
 
   let modules =
-    match mode with
-      | Simple -> []
-      | Modules kinds ->
-          List.map
-            (fun kind ->
-              let mt = G.string_of_kind kind in
-              <:sig_item<
-                module $uid:mt$ : functor (A : $uid:name$.$uid:mt$) ->
-                sig
-                  val bind :
-                    ?program_number:Rtypes.uint4 ->
-                    ?version_number:Rtypes.uint4 ->
-                    Rpc_server.t -> unit
-                end
-              >>)
-            kinds in
+    List.map
+      (fun kind ->
+        let mt = G.string_of_kind kind in
+        <:sig_item<
+          module $uid:mt$ : functor (A : $uid:name$.$uid:mt$) ->
+          sig
+            val bind :
+              ?program_number:Rtypes.uint4 ->
+              ?version_number:Rtypes.uint4 ->
+              Rpc_server.t -> unit
+          end
+        >>)
+      kinds in
 
   <:sig_item<
     val bind :
@@ -83,7 +80,7 @@ let gen_mli name (typedefs, excs, funcs, mode) =
 
 
 
-let gen_ml name (typedefs, excs, funcs, mode) =
+let gen_ml name (typedefs, excs, funcs, kinds) =
 
   let has_excs = excs <> [] in
   let to_arg = G.to_arg name in
@@ -161,56 +158,53 @@ let gen_ml name (typedefs, excs, funcs, mode) =
       >> in
 
   let modules =
-    match mode with
-      | Simple -> []
-      | Modules kinds ->
-          List.map
-            (fun kind ->
-              let mt = G.string_of_kind kind in
-              <:str_item<
-                module $uid:mt$ (A : $uid:name$.$uid:mt$) =
-                struct
-                  let bind
-                      ?program_number
-                      ?version_number
-                      srv =
-                    $match kind with
-                      | Ik_abstract -> assert false
+    List.map
+      (fun kind ->
+        let mt = G.string_of_kind kind in
+        <:str_item<
+          module $uid:mt$ (A : $uid:name$.$uid:mt$) =
+          struct
+            let bind
+                ?program_number
+                ?version_number
+                srv =
+              $match kind with
+                | Ik_abstract -> assert false
 
-                      | Sync ->
-                          List.fold_left
-                            (fun e (_, id, args, _) ->
-                              let body = <:expr< A.$lid:id$ >> in
-                              ExApp(_loc, e, ExLab (_loc, "proc_" ^ id, body)))
-                            <:expr< bind ?program_number ?version_number >>
-                            funcs
-                      | Async ->
-                          List.fold_left
-                            (fun e (_, id, args, _) ->
-                              let body =
-                                <:expr<
-                                  fun s ->
-                                    $G.args_funs args
-                                      <:expr<
-                                        fun pass_reply ->
-                                          Orpc_onc.session := Some s;
-                                          $G.args_apps <:expr< A.$lid:id$ >> args$
-                                            (fun r -> pass_reply (r ()))
-                                      >>$
-                                >> in
-                              ExApp(_loc, e, ExLab (_loc, "proc_" ^ id, body)))
-                            <:expr< bind_async ?program_number ?version_number >>
-                            funcs
-                      | Lwt ->
+                | Sync ->
+                    List.fold_left
+                      (fun e (_, id, args, _) ->
+                        let body = <:expr< A.$lid:id$ >> in
+                        ExApp(_loc, e, ExLab (_loc, "proc_" ^ id, body)))
+                      <:expr< bind ?program_number ?version_number >>
+                      funcs
+                | Async ->
+                    List.fold_left
+                      (fun e (_, id, args, _) ->
+                        let body =
                           <:expr<
-                            Rpc_server.bind
-                              ?program_number ?version_number $id:G.program name$
-                              $G.conses (List.map lwt_func funcs)$
-                          >>$
-                    srv
-                end
-              >>)
-            kinds in
+                            fun s ->
+                              $G.args_funs args
+                                <:expr<
+                                  fun pass_reply ->
+                                    Orpc_onc.session := Some s;
+                                    $G.args_apps <:expr< A.$lid:id$ >> args$
+                                      (fun r -> pass_reply (r ()))
+                                >>$
+                          >> in
+                        ExApp(_loc, e, ExLab (_loc, "proc_" ^ id, body)))
+                      <:expr< bind_async ?program_number ?version_number >>
+                      funcs
+                | Lwt ->
+                    <:expr<
+                      Rpc_server.bind
+                        ?program_number ?version_number $id:G.program name$
+                        $G.conses (List.map lwt_func funcs)$
+                    >>$
+              srv
+          end
+        >>)
+      kinds in
 
   <:str_item<
     let bind

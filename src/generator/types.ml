@@ -84,11 +84,9 @@ type module_type = {
   mt_funcs : mt_funcs;
 }
 
-type pre_interface = typedefs list * exc list * func list * module_type list
+type pre_interface = typedefs list * exc list * module_type list
 
-type mode = Simple | Modules of interface_kind list
-
-type interface = typedefs list * exc list * func list * mode
+type interface = typedefs list * exc list * func list * interface_kind list
 
 let loc_of_typ = function
   | Abstract loc -> loc

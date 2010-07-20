@@ -28,21 +28,18 @@ module G = Gen_common
 
 let _loc = Camlp4.PreCast.Loc.ghost
 
-let gen_mli name (typedefs, excs, funcs, mode) =
+let gen_mli name (typedefs, excs, funcs, kinds) =
 
-  let qual_id = G.qual_id_aux name mode in
+  let qual_id = G.qual_id_aux name in
 
   let modules =
-    match mode with
-      | Simple -> []
-      | Modules kinds ->
-          List.map
-            (fun kind ->
-              let mt = G.string_of_kind kind in
-              <:sig_item<
-                module $uid:mt$(C : sig val with_client : (Rpc_client.t -> 'a) -> 'a end) : $uid:name$.$uid:mt$
-              >>)
-            kinds in
+    List.map
+      (fun kind ->
+        let mt = G.string_of_kind kind in
+        <:sig_item<
+          module $uid:mt$(C : sig val with_client : (Rpc_client.t -> 'a) -> 'a end) : $uid:name$.$uid:mt$
+        >>)
+      kinds in
 
   <:sig_item<
     val create_client :
@@ -90,7 +87,7 @@ let gen_mli name (typedefs, excs, funcs, mode) =
     $list:modules$
   >>
 
-let gen_ml name (typedefs, excs, funcs, mode) =
+let gen_ml name (typedefs, excs, funcs, kinds) =
 
   let has_excs = excs <> [] in
   let of_arg = G.of_arg name in
@@ -138,54 +135,51 @@ let gen_ml name (typedefs, excs, funcs, mode) =
       >> in
 
   let modules =
-    match mode with
-      | Simple -> []
-      | Modules kinds ->
-          List.map
-            (fun kind ->
-              let func (_, id, args, res) =
-                <:str_item<
-                  let $lid:id$ =
-                    $G.args_funs args
-                      (match kind with
-                        | Ik_abstract -> assert false
+    List.map
+      (fun kind ->
+        let func (_, id, args, res) =
+          <:str_item<
+            let $lid:id$ =
+              $G.args_funs args
+                (match kind with
+                  | Ik_abstract -> assert false
 
-                        | Sync ->
-                            <:expr<
-                              C.with_client
-                              (fun c -> $G.args_apps <:expr< $lid:id$ c >> args$)
-                            >>
-                        | Async ->
-                            <:expr<
-                              fun pass_reply ->
-                                C.with_client
-                                  (fun c ->
-                                    $G.args_apps <:expr< $lid:id ^ "'async"$ c >> args$
-                                      pass_reply)
-                            >>
-                        | Lwt ->
-                            <:expr<
-                              C.with_client
-                              (fun c ->
-                                let t, u = Lwt.wait () in
-                                $G.args_apps <:expr< $lid:id ^ "'async"$ c >> args$
-                                  (fun r ->
-                                    match Orpc.pack_orpc_result r with
-                                      | Orpc.Orpc_success v -> Lwt.wakeup u v
-                                      | Orpc.Orpc_failure e -> Lwt.wakeup_exn u e);
-                                t)
-                            >>)$
-                >> in
+                  | Sync ->
+                      <:expr<
+                        C.with_client
+                        (fun c -> $G.args_apps <:expr< $lid:id$ c >> args$)
+                      >>
+                  | Async ->
+                      <:expr<
+                        fun pass_reply ->
+                          C.with_client
+                            (fun c ->
+                              $G.args_apps <:expr< $lid:id ^ "'async"$ c >> args$
+                                pass_reply)
+                      >>
+                  | Lwt ->
+                      <:expr<
+                        C.with_client
+                        (fun c ->
+                          let t, u = Lwt.wait () in
+                          $G.args_apps <:expr< $lid:id ^ "'async"$ c >> args$
+                            (fun r ->
+                              match Orpc.pack_orpc_result r with
+                                | Orpc.Orpc_success v -> Lwt.wakeup u v
+                                | Orpc.Orpc_failure e -> Lwt.wakeup_exn u e);
+                          t)
+                      >>)$
+          >> in
 
-              <:str_item<
-                module $uid:G.string_of_kind kind$(C : sig val with_client : (Rpc_client.t -> 'a) -> 'a end) =
-                struct
-                  $G._r_of_kind kind$;;
-                  $list:List.map func funcs$
-                end
-              >>)
+        <:str_item<
+          module $uid:G.string_of_kind kind$(C : sig val with_client : (Rpc_client.t -> 'a) -> 'a end) =
+          struct
+            $G._r_of_kind kind$;;
+            $list:List.map func funcs$
+          end
+        >>)
 
-            kinds in
+      kinds in
 
   <:str_item<
     let create_client
