@@ -30,7 +30,6 @@ module G = Gen_common
 
 let s_arg id = id ^ "'arg"
 let s_res id = id ^ "'res"
-let s_res0 id = id ^ "'res0"
 
 let long_to_ id = "orpc_js_aux_to_" ^ id
 let long_of_ id = "orpc_js_aux_of_" ^ id
@@ -101,7 +100,6 @@ let gen_mli name (typedefs, excs, funcs, mode) =
         val $lid:of_ aid$ : $t$ -> Orpc_js_server.obj
       >> in
     <:sig_item<
-      $items (s_res0 id) res$ ;;
       $items (s_arg id) arg$
       $items (s_res id) orpc_res$
     >> in
@@ -398,7 +396,6 @@ let gen_ml name (typedefs, excs, funcs, mode) =
         let $lid:of_ aid$ v = $gen_of qual_id arg <:expr< v >>$
       >> in
     <:str_item<
-      $items (s_res0 id) res$ ;;
       $items (s_arg id) arg$ ;;
       $items (s_res id) orpc_res$ ;;
     >> in

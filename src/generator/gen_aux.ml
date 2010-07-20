@@ -30,7 +30,6 @@ module G = Gen_common
 
 let s_arg id = id ^ "'arg"
 let s_res id = id ^ "'res"
-let s_res0 id = id ^ "'res0"
 
 let xdr_p id = "xdr'" ^ id
 
@@ -111,7 +110,6 @@ let gen_mli name (typedefs, excs, funcs, mode) =
         val $lid:xdr aid$ : Xdr.xdr_type_term
       >> in
     <:sig_item<
-      $items (s_res0 id) res$ ;;
       $items (s_arg id) arg$
       $items (s_res id) orpc_res$
     >> in
@@ -552,7 +550,6 @@ let gen_ml name (typedefs, excs, funcs, mode) =
         let $lid:xdr aid$ = $gen_xdr qual_id [] [] [] arg$
       >> in
     <:str_item<
-      $items (s_res0 id) res$ ;;
       $items (s_arg id) arg$ ;;
       $items (s_res id) orpc_res$ ;;
     >> in
