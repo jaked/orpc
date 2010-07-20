@@ -37,6 +37,17 @@ let long_of_ id = "orpc_js_aux_of_" ^ id
 let to_ id = "to_" ^ id
 let of_ id = "of_" ^ id
 
+(* from btype.ml in the OCaml source *)
+let hash_variant s =
+  let accu = ref 0 in
+  for i = 0 to String.length s - 1 do
+    accu := 223 * !accu + Char.code s.[i]
+  done;
+  (* reduce to 31 bits *)
+  accu := !accu land (1 lsl 31 - 1);
+  (* make it signed for 64 bits architectures *)
+  if !accu > 0x3FFFFFFF then !accu - (1 lsl 31) else !accu
+
 let gen_sig_typedef ?(qual_id=G.id) ds =
   <:sig_item< $list:
     List.map
@@ -172,55 +183,29 @@ let rec gen_to qual_id t x =
                 >> in
         <:expr<
           match $x$ with
-            | Orpc_js_server.Onumber _ ->
-                (match $x$ with
-                    $list:
-                      List.mapi
-                        mc
-                        (List.filter (fun (_, ts) -> ts = []) arms)$
-                  | _ -> raise (Invalid_argument "variant"))
-            | Orpc_js_server.Oblock _ ->
-                (match $x$ with
-                    $list:
-                      List.mapi
-                        mc
-                        (List.filter (fun (_, ts) -> ts <> []) arms)$
-                  | _ -> raise (Invalid_argument "variant"))
+            | $list:List.mapi mc (List.filter (fun (_, ts) -> ts = []) arms)$
+            | $list:List.mapi mc (List.filter (fun (_, ts) -> ts <> []) arms)$
             | _ -> raise (Invalid_argument "variant")
         >>
 
     | PolyVar (_loc, _, arms) ->
         let arms = List.map (function Pv_pv _ -> assert false | Pv_of (id, ts) -> (id, ts)) arms in
-        let mc (id, ts) i =
+        let mc (id, ts) =
           match ts with
             | [] ->
-                <:match_case< Orpc_js_server.Onumber $`flo:float_of_int i$ -> `$id$ >>
-            | _ ->
-                let (pps, pes) = G.vars ts in
                 <:match_case<
-                  Orpc_js_server.Oblock ($`int:i$, [| $list:pps$ |]) ->
-                    $List.fold_left
-                      (fun ps p -> <:expr< $ps$ $p$ >>)
-                      <:expr< `$id$ >>
-                      (List.map2 gen_to ts pes)$
+                  Orpc_js_server.Onumber $`flo:float_of_int (hash_variant id)$ -> `$id$
+                >>
+            | _ ->
+                let t = match ts with [t] -> t | _ -> Tuple (_loc, ts) in
+                <:match_case<
+                  Orpc_js_server.Oblock (0, [| Orpc_js_server.Onumber $`flo:float_of_int (hash_variant id)$; x |]) ->
+                    `$id$ $gen_to t <:expr< x >>$
                 >> in
         <:expr<
           match $x$ with
-            | Orpc_js_server.Onumber _ ->
-                (match $x$ with
-                    $list:
-                      List.mapi
-                        mc
-                        (List.filter (fun (_, ts) -> ts = []) arms)$
-                  | _ -> raise (Invalid_argument "variant"))
-            | Orpc_js_server.Oblock _ ->
-                (match $x$ with
-                    $list:
-                      List.mapi
-                        mc
-                        (List.filter (fun (_, ts) -> ts <> []) arms)$
-                  | _ -> raise (Invalid_argument "variant"))
-            | _ -> raise (Invalid_argument "variant")
+            | $list:List.map mc arms$
+            | _ -> raise (Invalid_argument "polyvar")
         >>
 
     | Array (_loc, t) ->
@@ -281,7 +266,7 @@ let rec gen_of qual_id t v =
         let mc (id, ts) i =
           match ts with
             | [] ->
-                <:match_case< $id:qual_id id$ -> Orpc_js_server.of_int $`int:i$ >>
+                <:match_case< $id:qual_id id$ -> Orpc_js_server.Onumber $`flo:float_of_int i$ >>
             | _ ->
                 let (pps, pes) = G.vars ts in
                 <:match_case<
@@ -296,21 +281,19 @@ let rec gen_of qual_id t v =
 
     | PolyVar (_loc, _, arms) ->
         let arms = List.map (function Pv_pv _ -> assert false | Pv_of (id, ts) -> (id, ts)) arms in
-        let mc (id, ts) i =
+        let mc (id, ts) =
           match ts with
             | [] ->
-                <:match_case< `$id$ -> Orpc_js_server.of_int $`int:i$ >>
-            | _ ->
-                let (pps, pes) = G.vars ts in
                 <:match_case<
-                  $G.papps <:patt< `$id$ >> pps$ ->
-                    Orpc_js_server.Oblock ($`int:i$, [| $exSem_of_list (List.map2 gen_of ts pes)$ |])
+                  `$id$ -> Orpc_js_server.Onumber $`flo:float_of_int (hash_variant id)$
+                >>
+            | _ ->
+                let t = match ts with [t] -> t | _ -> Tuple (_loc, ts) in
+                <:match_case<
+                  `$id$ x ->
+                    Orpc_js_server.Oblock (0, [| Orpc_js_server.Onumber $`flo:float_of_int (hash_variant id)$; $gen_of t <:expr< x >>$ |])
                 >> in
-        <:expr<
-          match $v$ with
-            | $list:List.mapi mc (List.filter (fun (_, ts) -> ts = []) arms)$
-            | $list:List.mapi mc (List.filter (fun (_, ts) -> ts <> []) arms)$
-        >>
+        <:expr< match $v$ with $list:List.map mc arms$ >>
 
     | Array (_loc, t) ->
         <:expr< Orpc_js_server.of_array (fun v -> $gen_of t <:expr< v >>$) $v$ >>
