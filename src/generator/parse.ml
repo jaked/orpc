@@ -184,8 +184,6 @@ let rec parse_sig_items i a =
     | SgMty (loc, id, MtSig (_, i)) -> { a with module_types = parse_module_type loc id i :: a.module_types }
     | <:sig_item@loc< module type Sync = Abstract with type _r 'a = 'a >> ->
         { a with module_types = { mt_loc = loc; mt_kind = Sync; mt_funcs = With } :: a.module_types }
-    | <:sig_item@loc< module type Async = Abstract with type _r 'a = ((unit -> 'a) -> unit) -> unit >> ->
-        { a with module_types = { mt_loc = loc; mt_kind = Async; mt_funcs = With } :: a.module_types }
     | <:sig_item@loc< module type Lwt = Abstract with type _r 'a = Lwt.t 'a >> ->
         { a with module_types = { mt_loc = loc; mt_kind = Lwt; mt_funcs = With } :: a.module_types }
     | _ -> sig_item_error i "expected type, exception, or module type"
@@ -211,7 +209,6 @@ and parse_module_type loc id i =
     match id with
       | "Abstract" -> Ik_abstract
       | "Sync" -> Sync
-      | "Async" -> Async
       | "Lwt" -> Lwt
       | _ -> loc_error loc "unknown interface kind" in
   let mt = { mt_loc = loc; mt_kind = kind; mt_funcs = Explicit [] } in

@@ -1,2 +1,3 @@
-<*.ml*> : pkg_orpc-onc, pkg_netplex
-<*.byte> : pkg_orpc-onc, pkg_netplex
+<mm_controller.ml> : syntax_camlp4o, pkg_lwt.syntax
+<*.ml*> : pkg_orpc-onc, pkg_netplex, pkg_lwt
+<*.byte> : pkg_orpc-onc, pkg_netplex, pkg_lwt

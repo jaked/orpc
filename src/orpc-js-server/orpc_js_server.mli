@@ -63,7 +63,6 @@ sig
 end
 
 module Sync : Monad with type 'a t = 'a
-module Async : Monad with type 'a t = ((unit -> 'a) -> unit) -> unit
 
 module Handler (M : Monad) : sig
   val handler : (string * (obj -> obj M.t)) list -> (string -> string M.t)

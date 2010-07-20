@@ -212,13 +212,6 @@ struct
   let bind x f = f x
 end
 
-module Async =
-struct
-  type 'a t = ((unit -> 'a) -> unit) -> unit
-  let return x = fun f -> f (fun () -> x)
-  let bind x f = fun rf -> x (fun r -> f (r ()) rf)
-end
-
 module Handler (M : Monad) =
 struct
   let handler procs body =

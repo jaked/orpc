@@ -22,5 +22,4 @@
 type ('a, 'b) orpc_result = Orpc_success of 'a | Orpc_failure of exn
 
 val pack_orpc_result : (unit -> 'a) -> ('a, exn) orpc_result
-val pack_orpc_result_async : (('a -> unit) -> unit) -> (('a, exn) orpc_result -> unit) -> unit
 val unpack_orpc_result : ('a, exn) orpc_result -> 'a

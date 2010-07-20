@@ -30,8 +30,6 @@ let _loc = Camlp4.PreCast.Loc.ghost
 
 let gen_mli name (typedefs, excs, funcs, kinds) =
 
-  let qual_id = G.qual_id_aux name in
-
   let modules =
     List.map
       (fun kind ->
@@ -47,36 +45,7 @@ let gen_mli name (typedefs, excs, funcs, kinds) =
         >>)
       kinds in
 
-  <:sig_item<
-    val bind :
-      ?program_number:Rtypes.uint4 ->
-      ?version_number:Rtypes.uint4 ->
-      $List.fold_right
-        (fun (_, id, args, res) t ->
-          <:ctyp<
-            $lid:"proc_" ^ id$ :
-              $G.args_arrows qual_id args (G.gen_type qual_id res)$
-            -> $t$
-          >>)
-        funcs
-        <:ctyp< Rpc_server.t -> unit >>$ ;;
-
-    val bind_async :
-      ?program_number:Rtypes.uint4 ->
-      ?version_number:Rtypes.uint4 ->
-      $List.fold_right
-        (fun (_, id, args, res) t ->
-          <:ctyp<
-            $lid:"proc_" ^ id$ : (Rpc_server.session ->
-              $G.args_arrows qual_id args
-                <:ctyp< ($G.gen_type qual_id res$ -> unit) -> unit >>$)
-            -> $t$
-          >>)
-        funcs
-        <:ctyp< Rpc_server.t -> unit >>$ ;;
-
-    $list:modules$
-  >>
+  <:sig_item< $list:modules$ >>
 
 
 
@@ -99,29 +68,10 @@ let gen_ml name (typedefs, excs, funcs, kinds) =
             (let (ps, _) = G.vars args in
              <:expr<
                let ( $tup:paCom_of_list ps$ ) = $id:to_arg id$ x0 in
-               $G.args_apps <:expr< $lid:"proc_" ^ id$ >> args$
+               $G.args_apps <:expr< A.$lid:id$ >> args$
              >>)$
       }
     >> in
-
-  let async_func (_, id, args, _) =
-    <:expr<
-      Rpc_server.Async {
-        Rpc_server.async_name = $`str:id$;
-        Rpc_server.async_invoke = fun s x0 ->
-          Orpc_onc.session := Some s;
-          $(fun body body2 ->
-              if has_excs
-              then <:expr< Orpc.pack_orpc_result_async (fun k -> $body$ k) $body2$ >>
-              else <:expr< $body$ $body2$ >>)
-            (let (ps, _) = G.vars args in
-             <:expr<
-               let ( $tup:paCom_of_list ps$ ) = $id:to_arg id$ x0 in
-               $G.args_apps <:expr< $lid:"proc_" ^ id$ s >> args$
-             >>)
-            <:expr< (fun y -> try Rpc_server.reply s ($id:of_res id$ y) with _ -> ()) >>$
-        }
-      >> in
 
   let lwt_func (_, id, args, _) =
     <:expr<
@@ -172,29 +122,11 @@ let gen_ml name (typedefs, excs, funcs, kinds) =
                 | Ik_abstract -> assert false
 
                 | Sync ->
-                    List.fold_left
-                      (fun e (_, id, args, _) ->
-                        let body = <:expr< A.$lid:id$ >> in
-                        ExApp(_loc, e, ExLab (_loc, "proc_" ^ id, body)))
-                      <:expr< bind ?program_number ?version_number >>
-                      funcs
-                | Async ->
-                    List.fold_left
-                      (fun e (_, id, args, _) ->
-                        let body =
-                          <:expr<
-                            fun s ->
-                              $G.args_funs args
-                                <:expr<
-                                  fun pass_reply ->
-                                    Orpc_onc.session := Some s;
-                                    $G.args_apps <:expr< A.$lid:id$ >> args$
-                                      (fun r -> pass_reply (r ()))
-                                >>$
-                          >> in
-                        ExApp(_loc, e, ExLab (_loc, "proc_" ^ id, body)))
-                      <:expr< bind_async ?program_number ?version_number >>
-                      funcs
+                    <:expr<
+                      Rpc_server.bind
+                        ?program_number ?version_number $id:G.program name$
+                        $G.conses (List.map sync_func funcs)$
+                    >>
                 | Lwt ->
                     <:expr<
                       Rpc_server.bind
@@ -206,34 +138,4 @@ let gen_ml name (typedefs, excs, funcs, kinds) =
         >>)
       kinds in
 
-  <:str_item<
-    let bind
-        ?program_number
-        ?version_number =
-      $List.fold_right
-        (fun (_, id, _, _) e -> <:expr< fun ~ $lid:"proc_" ^ id$ -> $e$ >>)
-        funcs
-        <:expr<
-          fun srv ->
-            Rpc_server.bind
-              ?program_number ?version_number $id:G.program name$
-              $G.conses (List.map sync_func funcs)$
-              srv
-        >>$ ;;
-
-    let bind_async
-        ?program_number
-        ?version_number =
-      $List.fold_right
-        (fun (_, id, _, _) e -> <:expr< fun ~ $lid:"proc_" ^ id$ -> $e$ >>)
-        funcs
-        <:expr<
-          fun srv ->
-            Rpc_server.bind
-              ?program_number ?version_number $id:G.program name$
-              $G.conses (List.map async_func funcs)$
-              srv
-        >>$ ;;
-
-    $list:modules$
-  >>
+  <:str_item< $list:modules$ >>

@@ -37,7 +37,6 @@ let gen_mli name (typedefs, excs, funcs, kinds) =
            match kind with
              | Ik_abstract -> assert false
              | Sync -> "Sync", <:ident< Orpc_js_server.Sync >>
-             | Async -> "Async", <:ident< Orpc_js_server.Async >>
              | Lwt -> "Lwt", <:ident< Lwt >> in
          <:sig_item<
            module $uid:mt$ : functor (A : $uid:name$.$uid:mt$) ->
@@ -76,22 +75,6 @@ let gen_ml name (typedefs, excs, funcs, kinds) =
              >>)$)
     >> in
 
-  let async_func (_, id, args, _) =
-    <:expr<
-      ($`str:id$,
-       fun x0 rf ->
-         $(fun body ->
-             if has_excs
-             then <:expr< pack_orpc_result_async (fun k -> $body$ k) >>
-             else <:expr< $body$ >>)
-           (let (ps, _) = G.vars args in
-            <:expr<
-              let ( $tup:paCom_of_list ps$ ) = $id:to_arg id$ x0 in
-              $G.args_apps <:expr< A.$lid:id$ >> args$
-            >>)$
-         (fun r -> let r = $id:of_res id$ (r ()) in rf (fun () -> r)))
-    >> in
-
   let lwt_func (_, id, args, _) =
     <:expr<
       ($`str:id$,
@@ -122,7 +105,6 @@ let gen_ml name (typedefs, excs, funcs, kinds) =
            match kind with
              | Ik_abstract -> assert false
              | Sync -> "Sync", <:ident< Orpc_js_server.Sync >>, sync_func
-             | Async -> "Async", <:ident< Orpc_js_server.Async >>, async_func
              | Lwt -> "Lwt", <:ident< Lwt >>, lwt_func in
          <:str_item<
            module $uid:mt$ (A : $uid:name$.$uid:mt$) =
@@ -147,10 +129,6 @@ let gen_ml name (typedefs, excs, funcs, kinds) =
       let pack_orpc_result f =
         try Orpc.Orpc_success (f ())
         with e -> map_exns e
-
-      let pack_orpc_result_async f k =
-        try f (fun r -> let r = try Orpc.Orpc_success (r ()) with e -> map_exns e in k (fun () -> r))
-        with e -> let r = map_exns e in k (fun () -> r)
     >> in
 
   <:str_item<

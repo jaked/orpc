@@ -91,7 +91,7 @@ end
 module Multiplier (W : sig val workers : (string * int) list end) =
 struct
 
-  let ping () emit = emit (fun () -> ())
+  let ping () = Lwt.return ()
 
   let fill m rows cols =
     for j = 0 to rows-1 do
@@ -101,7 +101,7 @@ struct
     done
     
 
-  let test_multiply lrows rcols rrows emit =
+  let test_multiply lrows rcols rrows =
     (* This is an asynchronous RPC implmentation. This means we don't have to
        reply the result immediately. Instead we get an [emit] function, and
        we can call this function at some time in the future to pass the result
@@ -117,45 +117,35 @@ struct
     current_job_queue := Some(0, lcols, 0, rrows);
   
     (* Now start the computations by telling all workers to go: *)
-    let n = ref 0 in
     let esys = (Netplex_cenv.self_cont()) # event_system in
     let worker_clients = ref [] in
-    List.iter
-      (fun (host,port) ->
-        let worker =
-	  Mm_proto_worker_clnt.create_client2
-            ~program_number:(Rtypes.uint4_of_int 3)
-	    ~esys
-	    (`Socket(Rpc.Tcp,
-		    Rpc_client.Inet(host,port),
-		    Rpc_client.default_socket_config)) in
-        worker_clients := worker :: !worker_clients;
-        Mm_proto_worker_clnt.run'async
-	  worker
-	  ()
-	  (fun get_result ->
-	    (* This function is called back when the worker passes a result
-               back for "run"
-	    *)
-	    decr n;
-	    ( try let () = get_result() in () (* check for exceptions *)
-	      with error ->
-		Netplex_cenv.logf `Err "Error from worker: %s"
-		  (Printexc.to_string error)
-	    );
-	    if !n=0 then (
-	      (* All workers done! *)
-	      assert(!current_job_queue = None);
-	      (* Delete the result: *)
-	      current_matrices := None;
-	      current_result := None;
-	      emit (fun () -> ());
-	      List.iter Rpc_client.shut_down !worker_clients
-	    )
-	  );
-        incr n
-      )
-      W.workers
+    let worker_calls =
+      List.map
+        (fun (host,port) ->
+          let worker =
+	    Mm_proto_worker_clnt.create_client2
+              ~program_number:(Rtypes.uint4_of_int 3)
+	      ~esys
+	      (`Socket(Rpc.Tcp,
+		      Rpc_client.Inet(host,port),
+		      Rpc_client.default_socket_config)) in
+          worker_clients := worker :: !worker_clients;
+          let module M = Mm_proto_worker_clnt.Lwt (struct let with_client f = f worker end) in
+          try_lwt M.run ()
+          with error ->
+  	    Netplex_cenv.logf `Err "Error from worker: %s"
+  	      (Printexc.to_string error);
+            Lwt.return ())
+        W.workers in
+    lwt () = Lwt.join worker_calls in
+    (* All workers done! *)
+    assert(!current_job_queue = None);
+    (* Delete the result: *)
+    current_matrices := None;
+    current_result := None;
+    (* XXX original emits reply before shutting down clients---how to achieve in Lwt? *)
+    List.iter Rpc_client.shut_down !worker_clients;
+    Lwt.return ()
 end
 
 
@@ -183,7 +173,7 @@ let configure cf addr =
 
 let setup srv workers =
   let module W = struct let workers = workers end in
-  let module M = Mm_proto_multiplier_srv.Async(Multiplier(W)) in
+  let module M = Mm_proto_multiplier_srv.Lwt(Multiplier(W)) in
   M.bind
     ~program_number:(Rtypes.uint4_of_int 1)
     srv;

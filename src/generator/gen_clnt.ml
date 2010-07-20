@@ -30,8 +30,6 @@ let _loc = Camlp4.PreCast.Loc.ghost
 
 let gen_mli name (typedefs, excs, funcs, kinds) =
 
-  let qual_id = G.qual_id_aux name in
-
   let modules =
     List.map
       (fun kind ->
@@ -65,25 +63,6 @@ let gen_mli name (typedefs, excs, funcs, kinds) =
       Rpc_client.mode2 ->
       Rpc_client.t ;;
 
-    $list:
-      List.map
-        (fun (_, id, args, res) ->
-          <:sig_item<
-            val $lid:id$ : Rpc_client.t ->
-              $G.args_arrows qual_id args (G.gen_type qual_id res)$
-          >>)
-        funcs$ ;;
-
-    $list:
-      List.map
-        (fun (_, id, args, res) ->
-          <:sig_item<
-            val $lid:id ^ "'async"$ : Rpc_client.t ->
-              $G.args_arrows qual_id args
-                <:ctyp< ((unit -> $G.gen_type qual_id res$) -> unit) -> unit >>$
-          >>)
-        funcs$ ;;
-
     $list:modules$
   >>
 
@@ -93,82 +72,41 @@ let gen_ml name (typedefs, excs, funcs, kinds) =
   let of_arg = G.of_arg name in
   let to_res = G.to_res name in
 
-  let sync_func (_, id, args, res) =
-    (fun body ->
-      <:str_item<
-        let $lid:id$ = fun client ->
-          $match args with
-            | [] -> assert false
-            | [a] -> G.args_funs args body
-            | _ ->
-                let (_, es) = G.vars args in
-                G.args_funs args
-                  <:expr< let x0 = ($exCom_of_list es$) in $body$ >>$
-      >>)
-      ((fun body2 ->
-          if has_excs
-          then <:expr< Orpc.unpack_orpc_result $body2$ >>
-          else body2)
-        <:expr<
-          $id:to_res id$
-          (Rpc_client.sync_call client $`str:id$ ($id:of_arg id$ x0))
-        >>) in
-
-  let async_func (_, id, args, res) =
-    (fun body ->
-      <:str_item<
-        let $lid:id ^ "'async"$ = fun client ->
-          $match args with
-            | [] -> assert false
-            | [a] -> G.args_funs args <:expr< fun pass_reply -> $body$ >>
-            | _ ->
-                let (_, es) = G.vars args in
-                G.args_funs args
-                  <:expr< fun pass_reply -> let x0 = ($exCom_of_list es$) in $body$ >>$
-      >>)
-      <:expr<
-        Rpc_client.add_call client $`str:id$ ($id:of_arg id$ x0)
-          (fun g -> pass_reply (fun () ->
-            $if has_excs
-            then <:expr< Orpc.unpack_orpc_result ($id:to_res id$ (g ())) >>
-            else <:expr< $id:to_res id$ (g ()) >>$))
-      >> in
-
   let modules =
     List.map
       (fun kind ->
         let func (_, id, args, res) =
+          let body =
+            match kind with
+              | Ik_abstract -> assert false
+
+              | Sync ->
+                  let body2 = <:expr< $id:to_res id$ (Rpc_client.sync_call c $`str:id$ ($id:of_arg id$ x0)) >> in
+                  if has_excs
+                  then <:expr< C.with_client (fun c -> Orpc.unpack_orpc_result $body2$) >>
+                  else <:expr< C.with_client (fun c -> $body2$) >>
+
+              | Lwt ->
+                  <:expr<
+                    let t, u = Lwt.wait () in
+                    C.with_client (fun c ->
+                      Rpc_client.add_call c $`str:id$ ($id:of_arg id$ x0)
+                        (fun g ->
+                           $if has_excs
+                            then <:expr< try Lwt.wakeup u (Orpc.unpack_orpc_result ($id:to_res id$ (g ()))) with e -> Lwt.wakeup_exn u e >>
+                            else <:expr< Lwt.wakeup u ($id:to_res id$ (g ())) >>$));
+                    t
+                  >> in
+                  
           <:str_item<
             let $lid:id$ =
               $G.args_funs args
-                (match kind with
-                  | Ik_abstract -> assert false
-
-                  | Sync ->
-                      <:expr<
-                        C.with_client
-                        (fun c -> $G.args_apps <:expr< $lid:id$ c >> args$)
-                      >>
-                  | Async ->
-                      <:expr<
-                        fun pass_reply ->
-                          C.with_client
-                            (fun c ->
-                              $G.args_apps <:expr< $lid:id ^ "'async"$ c >> args$
-                                pass_reply)
-                      >>
-                  | Lwt ->
-                      <:expr<
-                        C.with_client
-                        (fun c ->
-                          let t, u = Lwt.wait () in
-                          $G.args_apps <:expr< $lid:id ^ "'async"$ c >> args$
-                            (fun r ->
-                              match Orpc.pack_orpc_result r with
-                                | Orpc.Orpc_success v -> Lwt.wakeup u v
-                                | Orpc.Orpc_failure e -> Lwt.wakeup_exn u e);
-                          t)
-                      >>)$
+                (match args with
+                   | [] -> assert false
+                   | [a] -> body
+                   | _ ->
+                       let (_, es) = G.vars args in
+                       <:expr< let x0 = ($exCom_of_list es$) in $body$ >>)$
           >> in
 
         <:str_item<
@@ -199,10 +137,6 @@ let gen_ml name (typedefs, excs, funcs, kinds) =
         ?version_number
         mode2 =
       Rpc_client.create2 ?program_number ?version_number mode2 $id:G.program name$ esys ;;
-
-    $list:List.map sync_func funcs$ ;;
-
-    $list:List.map async_func funcs$ ;;
 
     $list:modules$
   >>

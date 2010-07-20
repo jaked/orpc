@@ -26,10 +26,6 @@ let pack_orpc_result f =
   try Orpc_success (f ())
   with e -> Orpc_failure e
 
-let pack_orpc_result_async f k =
-  try f (fun r -> k (Orpc_success r))
-  with e -> k (Orpc_failure e)
-
 let unpack_orpc_result v =
   match v with
     | Orpc_success v -> v

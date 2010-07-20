@@ -15,7 +15,6 @@ sig
 end
 
 module type Sync = Abstract with type 'a _r = 'a
-module type Async = Abstract with type 'a _r = ((unit -> 'a) -> unit) -> unit
 module type Lwt = Abstract with type 'a _r = 'a Lwt.t
 
 (*
@@ -28,17 +27,6 @@ sig
   val add1_lst : int Types.lst -> int Types.lst
   val addN : ?n:int -> int -> int
   val maybe_raise : bool -> unit
-end
-
-module type Async =
-sig
-  val add1 : int -> ((unit -> int) -> unit) -> unit
-  val add1_list : int list -> ((unit -> int list) -> unit) -> unit
-  val add1_pair : (int * int) -> ((unit -> (int * int)) -> unit) -> unit
-  val add1_r : Types.r -> ((unit -> Types.r) -> unit) -> unit
-  val add1_lst : int Types.lst -> ((unit -> int Types.lst) -> unit) -> unit
-  val addN : ?n:int -> int -> ((unit -> int) -> unit) -> unit
-  val maybe_raise : bool -> ((unit -> unit) -> unit) -> unit
 end
 
 module type Lwt =

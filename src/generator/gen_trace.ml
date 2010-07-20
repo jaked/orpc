@@ -314,18 +314,6 @@ let gen_ml name (typedefs, excs, funcs, kinds) =
                     with e -> $trace_reply_exn$; raise e
                   >>
 
-              | Async ->
-                  <:expr<
-                    fun pass_reply ->
-                      let t = $trace_call$ in
-                      let pass_reply rf =
-                        let rf =
-                          (try let r = rf () in $trace_reply_ok$; fun () -> r
-                            with e -> $trace_reply_exn$; fun () -> raise e) in
-                        pass_reply rf in
-                      $G.args_apps <:expr< A.$lid:id$ >> args$ pass_reply
-                  >>
-
               | Lwt ->
                   <:expr<
                     let t = $trace_call$ in

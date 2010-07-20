@@ -30,8 +30,8 @@ let main() =
       (`Socket(Rpc.Tcp,
 	       Rpc_client.Inet(!host,!port),
 	       Rpc_client.default_socket_config)) in
-  Mm_proto_multiplier_clnt.test_multiply 
-    multiplier
+  let module M = Mm_proto_multiplier_clnt.Sync (struct let with_client f = f multiplier end) in
+  M.test_multiply 
     !lrows !rcols !rrows
 
 

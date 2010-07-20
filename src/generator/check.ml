@@ -183,21 +183,6 @@ let rec get_module_type_funcs mts =
 
             | Sync -> (fun f -> f)
 
-            | Async ->
-                (fun (loc, id, args, ret) ->
-                  if not (match ret with Unit _ -> true | _ -> false)
-                  then loc_error (loc_of_typ ret) "async return type must be unit";
-                  let (args, reply) =
-                    match List.rev args with
-                      | [] -> assert false (* checked in parse *)
-                      | [_] -> loc_error loc "async function must have at least two arguments"
-                      | ret::args -> List.rev args, ret in
-                  let ret =
-                    match reply with
-                      | Unlabelled (_, Arrow (_, Arrow (_, Unit _, ret), Unit _)) -> ret
-                      | _ -> loc_error (loc_of_argtyp reply) "async function must have reply argument" in
-                  (loc, id, args, ret))
-
             | Lwt ->
                 (fun (loc, id, args, lwt_ret) ->
                   let ret =
@@ -230,12 +215,6 @@ let check_module_type_funcs has_abstract funcs { mt_loc = loc; mt_kind = kind; m
             check_names s_loc id s_id;
             check_args s_loc args s_args;
             check_ret ret s_ret)
-      | Async ->
-          (fun (_, id, args, ret) (as_loc, as_id, as_args, as_ret) ->
-            check_names as_loc id as_id;
-            let args = args @ [ Unlabelled (g, Arrow (g, Arrow (g, Unit g, ret), Unit g)) ] in
-            check_args as_loc args as_args;
-            check_ret (Unit g) as_ret)
       | Lwt ->
           (fun (_, id, args, ret) (l_loc, l_id, l_args, l_ret) ->
             check_names l_loc id l_id;
