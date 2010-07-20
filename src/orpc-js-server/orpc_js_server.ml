@@ -22,42 +22,53 @@
 let debug = ref ignore
 let set_debug f = debug := f
 
+(*
+  we essentially pass the heap representation back and forth, but the
+  heap rep is not identical on client and server: on the Javascript
+  side bools are bools, but on the OCaml side they are 0 and 1. for
+  this reason we need type-directed marshaling from server to
+  client. from client to server we need type-directed unmarshaling
+  because we don't trust the client to send us an acceptable heap
+  value.
+
+  on the client we walk the heap (without type-direction) to marshal a
+  value, and eval a marshaled value to get a heap value. the client ->
+  server marshaled format (which does not need to be valid Javascript)
+  is not the same as the server -> client one (which does).
+*)
+
 type obj =
-    | Oint of int
-    | Ofloat of float
-    | Ostring of string
-    | Oblock of int * obj array
+  | Obool of bool
+  | Onumber of float
+  | Ostring of string
+  | Oblock of int * obj array
 
 let to_unit = function
-  | Oint 0 -> ()
+  | Onumber 0. -> ()
   | _ -> raise (Invalid_argument "unit")
 
 let to_int = function
-  | Oint i -> i
+  | Onumber f -> int_of_float f
   | _ -> raise (Invalid_argument "int")
 
 let to_int32 = function
-  | Oint i -> Int32.of_int i
-  | Ofloat f -> Int32.of_float f
+  | Onumber f -> Int32.of_float f
   | _ -> raise (Invalid_argument "int32")
 
 let to_int64 = function
-  | Oint i -> Int64.of_int i
-  | Ofloat f -> Int64.of_float f
+  | Onumber f -> Int64.of_float f
   | _ -> raise (Invalid_argument "int64")
 
 let to_float = function
-  | Oint i -> float_of_int i
-  | Ofloat f -> f
+  | Onumber f -> f
   | _ -> raise (Invalid_argument "float")
 
 let to_bool = function
-  | Oint 0 -> false
-  | Oint 1 -> true
+  | Obool b -> b
   | _ -> raise (Invalid_argument "bool")
 
 let to_char = function
-  | Oint c -> char_of_int c
+  | Onumber c -> char_of_int (int_of_float c)
   | _ -> raise (Invalid_argument "char")
 
 let to_string = function
@@ -66,54 +77,56 @@ let to_string = function
 
 let to_list to'a x =
   let rec loop = function
-    | Oint 0 -> []
+    | Onumber 0. -> []
     | Oblock (0, [| x0; x1 |]) -> to'a x0 :: loop x1
     | _ -> raise (Invalid_argument "list") in
   loop x
 
 let to_option to'a = function
-  | Oint 0 -> None
+  | Onumber 0. -> None
   | Oblock (0, [| x0 |]) -> Some (to'a x0)
   | _ -> raise (Invalid_argument "option")
 
-(*
-  in essence we are transferring the heap representation back and
-  forth, but since it is not identical on client and server we do
-  things asymmetrically:
+let to_array to'a = function
+  | Oblock (0, a) -> Array.map to'a a
+  | _ -> raise (Invalid_argument "array")
 
-  from server to client we can work directly over the heap
-  representation; we have enough information to generate the right
-  Javascript heap object.
+let to_ref to'a = function
+  | Oblock (0, [| x |]) -> ref (to'a x)
+  | _ -> raise (Invalid_argument "ref")
 
-  from client to server we don't have complete information (e.g. the
-  client doesn't know if a particular Javascript number is supposed to
-  be a float or an int). the wire format doesn't distinguish between
-  float and int; we parse it to an intermediate "obj" (for numbers we
-  guess that if there is a period it's a float); then we use the types
-  in the orpc interface to guide the ultimate conversion (see the to_*
-  functions in *_aux.ml).
-*)
+let of_unit () = Onumber 0.
+let of_int i = Onumber (float_of_int i)
+let of_int32 i = Onumber (Int32.to_float i)
+let of_int64 i = Onumber (Int64.to_float i)
+let of_float f = Onumber f
+let of_bool b = Obool b
+let of_char c = Onumber (float_of_int (int_of_char c))
+let of_string s = Ostring s
+
+let of_list of'a x =
+  let rec loop = function
+    | [] -> Onumber 0.
+    | h :: t -> Oblock (0, [| of'a h; loop t |]) in
+  loop x
+
+let of_option of'a = function
+  | None -> Onumber 0.
+  | Some x -> Oblock (0, [| of'a x |])
+
+let of_array of'a a = Oblock (0, Array.map of'a a)
+
+let of_ref of'a x = Oblock (0, [| of'a !x |])
 
 let serialize o =
   let module B = Buffer in
   let b = B.create 1024 in
-  let rec loop o =
-    let tag = Obj.tag o in
-    if Obj.is_int o then B.add_string b (string_of_int (Obj.obj o))
-    else if
-        tag = Obj.lazy_tag || tag = Obj.closure_tag || tag = Obj.object_tag ||
-      tag = Obj.infix_tag || tag = Obj.forward_tag || tag = Obj.no_scan_tag ||
-      tag = Obj.abstract_tag || tag = Obj.custom_tag || tag = Obj.int_tag ||
-      tag = Obj.out_of_heap_tag
-    then
-      raise (Invalid_argument "serialize: unserializeable heap object")
-    else if tag = Obj.string_tag then (B.add_char b '"'; B.add_string b (Jslib_pp.escaped (Obj.obj o)); B.add_char b '"')
-    else if tag = Obj.double_tag then B.add_string b (string_of_float (Obj.obj o)) (* XXX check float format *)
-    else if tag = Obj.double_array_tag then raise (Invalid_argument "serialize: unimplemented")
-    else
-      let size = Obj.size o in
-      begin
-        match tag with
+  let rec loop = function
+    | Obool bl -> B.add_string b (if bl then "true" else "false")
+    | Onumber f -> B.add_string b (string_of_float f)
+    | Ostring s -> B.add_char b '"'; B.add_string b (Jslib_pp.escaped s); B.add_char b '"'
+    | Oblock (tag, fields) ->
+        begin match tag with
           | 0 -> B.add_string b "$("
           | 1 -> B.add_string b "$1("
           | 2 -> B.add_string b "$2("
@@ -125,32 +138,36 @@ let serialize o =
           | 8 -> B.add_string b "$8("
           | 9 -> B.add_string b "$9("
           | _ -> B.add_string b "$N("; B.add_string b (string_of_int tag); B.add_string b ", ["
-      end;
-      for i=0 to size-1 do
-        loop (Obj.field o i);
-        if i < size - 1 then B.add_string b ", "
-      done;
-      if tag > 9 then B.add_char b ']';
-      B.add_char b ')' in
+        end;
+        let size = Array.length fields in
+        for i=0 to size-1 do
+          loop fields.(i);
+          if i < size - 1 then B.add_string b ", "
+        done;
+        if tag > 9 then B.add_char b ']';
+        B.add_char b ')' in
   loop o;
   B.contents b
 
 let invalid s = raise (Invalid_argument ("unserialize: invalid " ^ s))
 
 type token =
-    | Tint of string
-    | Tfloat of string
-    | Tstring of string
-    | Tblock_start
-    | Tblock_end
-    | Teoi
+  | Tbool of bool
+  | Tnumber of float
+  | Tstring of string
+  | Tblock_start
+  | Tblock_end
+  | Teoi
 
 let rec token lb = lexer
   | '[' -> Tblock_start
   | ']' -> Tblock_end
-  | '-'? ['0'-'9']+ 65535 -> Tint (Ulexing.latin1_sub_lexeme lb 0 (Ulexing.lexeme_length lb - 1))
-  | '-'? ['0'-'9']+ '.' ['0'-'9']* 65535 -> Tfloat (Ulexing.latin1_sub_lexeme lb 0 (Ulexing.lexeme_length lb - 1))
+  | '-'? ['0'-'9']+ ( '.' ['0'-'9']* )? 65535 ->
+      let s = Ulexing.latin1_sub_lexeme lb 0 (Ulexing.lexeme_length lb - 1) in
+      (try Tnumber (float_of_string s) with Invalid_argument "float_of_string" -> invalid s)
   | 's' [^ 65535]* 65535 -> Tstring (Ulexing.utf8_sub_lexeme lb 1 (Ulexing.lexeme_length lb - 2))
+  | 't' -> Tbool true
+  | 'f' -> Tbool false
   | eof -> Teoi
   | _ -> invalid ("character " ^ string_of_int (Ulexing.lexeme_char lb 0))
 
@@ -160,19 +177,8 @@ let unserialize s =
   let next_tok () = try token lb lb with Ulexing.Error | Ulexing.InvalidCodepoint _ -> invalid "character" in
   let rec loop () =
     match next_tok () with
-      | Tint s ->
-          begin
-            try Oint (int_of_string s)
-            with Invalid_argument "int_of_string" ->
-              try Ofloat (float_of_string s) (* in case it's out of range *)
-              with Invalid_argument "float_of_string" ->
-                invalid ("int " ^ s)
-          end
-      | Tfloat s ->
-          begin
-            try Ofloat (float_of_string s)
-            with Invalid_argument "float_of_string" -> invalid ("float " ^ s)
-          end
+      | Tbool b -> Obool b
+      | Tnumber f -> Onumber f
       | Tstring s -> Ostring s
       | Tblock_start ->
           let rec loop2 block =
@@ -181,7 +187,7 @@ let unserialize s =
               | Tblock_end ->
                   begin
                     match block with
-                      | Oint tag :: ((_::_) as fields) -> Oblock (tag, Array.of_list (List.rev fields))
+                      | Onumber tag :: ((_::_) as fields) -> Oblock (int_of_float tag, Array.of_list (List.rev fields))
                       | _ -> invalid "block"
                   end
               | _ -> Ulexing.rollback lb; loop2 (loop () :: block) in

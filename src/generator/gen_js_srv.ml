@@ -61,12 +61,13 @@ let gen_ml name (typedefs, excs, funcs, mode) =
 
   let aux_id id = <:ident< $uid:name ^ "_js_aux"$ . $lid:id$ >> in
   let to_arg id = aux_id ("to_" ^ id ^ "'arg") in
+  let of_res id = aux_id ("of_" ^ id ^ "'res") in
 
   let sync_func (_, id, args, _) =
     <:expr<
       ($`str:id$,
       fun x0 ->
-        Obj.repr
+        $id:of_res id$
           $(fun body ->
               if has_excs
               then <:expr< pack_orpc_result (fun () -> $body$) >>
@@ -91,7 +92,7 @@ let gen_ml name (typedefs, excs, funcs, mode) =
               let ( $tup:paCom_of_list ps$ ) = $id:to_arg id$ x0 in
               $G.args_apps <:expr< A.$lid:id$ >> args$
             >>)$
-         (fun r -> let r = Obj.repr (r ()) in rf (fun () -> r)))
+         (fun r -> let r = $id:of_res id$ (r ()) in rf (fun () -> r)))
     >> in
 
   let lwt_func (_, id, args, _) =
@@ -107,13 +108,13 @@ let gen_ml name (typedefs, excs, funcs, mode) =
              >>$)
           (fun v ->
              Lwt.return
-               (Obj.repr
+               ($id:of_res id$
                   ($if has_excs
                    then <:expr< Orpc.Orpc_success v >>
                    else <:expr< v >>$)))
           (fun e ->
              $if has_excs
-             then <:expr< Lwt.return (Obj.repr (map_exns e)) >>
+             then <:expr< Lwt.return ($id:of_res id$ (map_exns e)) >>
              else <:expr< Lwt.fail e >>$))
     >> in
 

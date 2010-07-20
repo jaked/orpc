@@ -27,7 +27,7 @@ let serialize o =
     match Javascript.typeof o with
       | "string" -> push (Obj.repr "s"); push_ffff o
       | "number" -> push_ffff o
-      | "boolean" -> push_ffff (Obj.repr (if Obj.obj o then 1 else 0))
+      | "boolean" -> push (Obj.repr (if Obj.obj o then "t" else "f"))
       | "object" -> (* XXX check for Array *)
           push (Obj.repr "[");
           let s = Obj.size o - 1 in
@@ -37,6 +37,8 @@ let serialize o =
       | _ -> raise (Failure "serialize: unserializeable heap object") in
   loop o;
   a#join ""
+
+let unserialize = Javascript.eval
 
 (* this is in dom package but don't want dependency *)
 class type xMLHttpRequest =
@@ -67,7 +69,7 @@ let sync_call url proc arg =
   xhr#setRequestHeader "Content-Type" "text/plain";
   xhr#send (serialize (Obj.repr (proc, arg)));
   if xhr#_get_status = 200
-  then Javascript.eval xhr#_get_responseText
+  then unserialize xhr#_get_responseText
   else raise (Failure xhr#_get_statusText)
 
 let add_call url proc arg pass_reply =
@@ -77,7 +79,7 @@ let add_call url proc arg pass_reply =
       | 4 ->
           let r =
             if xhr#_get_status = 200
-            then let o = Javascript.eval xhr#_get_responseText in (fun () -> o)
+            then let o = unserialize xhr#_get_responseText in (fun () -> o)
             else let s = xhr#_get_statusText in (fun () -> raise (Failure s)) in
           pass_reply r
       | _ -> ());
