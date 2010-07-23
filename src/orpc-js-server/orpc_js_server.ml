@@ -203,6 +203,7 @@ sig
   type 'a t
   val return : 'a -> 'a t
   val bind : 'a t -> ('a -> 'b t) -> 'b t
+  val fail : exn -> 'a t
 end
 
 module Sync =
@@ -210,17 +211,20 @@ struct
   type 'a t = 'a
   let return x = x
   let bind x f = f x
+  let fail e = raise e
 end
 
 module Handler (M : Monad) =
 struct
   let handler procs body =
-    let (proc_name, arg) =
-      match unserialize body with
-        | Oblock (0, [| Ostring proc_name; arg |]) -> proc_name, arg
-        | _ -> raise (Invalid_argument "bad request") in
-    let proc =
-      try List.assoc proc_name procs
-      with Not_found -> raise (Invalid_argument ("bad request " ^ proc_name)) in
-    M.bind (proc arg) (fun s -> M.return (serialize s))
+    try
+      let (proc_name, arg) =
+        match unserialize body with
+          | Oblock (0, [| Ostring proc_name; arg |]) -> proc_name, arg
+          | _ -> raise (Invalid_argument "bad request") in
+      let proc =
+        try List.assoc proc_name procs
+        with Not_found -> raise (Invalid_argument ("bad request " ^ proc_name)) in
+      M.bind (proc arg) (fun s -> M.return (serialize s))
+    with e -> M.fail e
 end
