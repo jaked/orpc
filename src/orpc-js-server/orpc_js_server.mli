@@ -55,6 +55,20 @@ val of_ref : ('a -> obj) -> 'a ref -> obj
 
 val set_debug : (string -> unit) -> unit
 
+type msg_t =
+  | Noop
+  | Call of int * string * obj
+  | Res of int * obj
+  | Fail of int * string
+
+type msg = {
+  m_session_id : string option;
+  msg : msg_t;
+}
+
+val msg_of_string : string -> msg
+val string_of_msg : msg -> string
+
 module type Monad =
 sig
   type 'a t

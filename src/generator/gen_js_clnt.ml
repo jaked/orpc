@@ -32,11 +32,13 @@ let gen_mli name (typedefs, excs, funcs, kinds) =
 
   let modules =
     List.map
-      (fun kind ->
-        let mt = G.string_of_kind kind in
-        <:sig_item<
-          module $uid:mt$(C : sig val with_client : (Orpc_js_client.t -> 'a) -> 'a end) : $uid:name$.$uid:mt$
-        >>)
+      (function
+         | Ik_abstract -> assert false
+         | Sync -> <:sig_item< >>
+         | Lwt ->
+             <:sig_item<
+               module Lwt(C : sig val with_client : (Orpc_js_client.t -> 'a) -> 'a end) : $uid:name$.Lwt
+             >>)
       kinds in
 
   <:sig_item< $list:modules$ >>
@@ -51,21 +53,15 @@ let gen_ml name (typedefs, excs, funcs, kinds) =
     List.map
       (fun kind ->
         let func (_, id, args, res) =
-          let body =
-            match kind with
-              | Ik_abstract -> assert false
-
-              | Sync ->
-                  let body2 = <:expr< Orpc_js_client.sync_call c $`str:id$ (Obj.repr x0) >> in
-                  if has_excs
-                  then <:expr< C.with_client (fun c -> unpack_orpc_result (fun () -> $body2$)) >>
-                  else <:expr< C.with_client (fun c -> Obj.obj $body2$) >>
-
-              | Lwt ->
+          match kind with
+            | Ik_abstract -> assert false
+            | Sync -> <:str_item< >>
+            | Lwt ->
+                let body =
                   <:expr<
                     let t, u = Lwt.wait () in
                     C.with_client (fun c ->
-                      Orpc_js_client.add_call c $`str:id$ (Obj.repr x0)
+                      Orpc_js_client.call c $`str:id$ (Obj.repr x0)
                         (fun g ->
                           $if has_excs
                           then <:expr< try Lwt.wakeup u (unpack_orpc_result g) with e -> Lwt.wakeup_exn u e >>
@@ -73,16 +69,16 @@ let gen_ml name (typedefs, excs, funcs, kinds) =
                     t
                   >> in
 
-          <:str_item<
-            let $lid:id$ =
-              $G.args_funs args
-                (match args with
-                   | [] -> assert false
-                   | [a] -> body
-                   | _ ->
-                       let (_, es) = G.vars args in
-                       <:expr< let x0 = ($exCom_of_list es$) in $body$ >>)$
-          >> in
+                <:str_item<
+                  let $lid:id$ =
+                    $G.args_funs args
+                      (match args with
+                         | [] -> assert false
+                         | [a] -> body
+                         | _ ->
+                             let (_, es) = G.vars args in
+                             <:expr< let x0 = ($exCom_of_list es$) in $body$ >>)$
+                >> in
 
         <:str_item<
           module $uid:G.string_of_kind kind$(C : sig val with_client : (Orpc_js_client.t -> 'a) -> 'a end) =
@@ -91,7 +87,6 @@ let gen_ml name (typedefs, excs, funcs, kinds) =
             $list:List.map func funcs$
           end
         >>)
-
       kinds in
 
   (* exceptions are pointer-compared, so we need to map back to the right ones *)

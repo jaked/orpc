@@ -198,6 +198,41 @@ let unserialize s =
     | Teoi -> o
     | _ -> invalid "serialized heap object"
 
+type msg_t =
+  | Noop
+  | Call of int * string * obj
+  | Res of int * obj
+  | Fail of int * string
+
+type msg = {
+  m_session_id : string option;
+  msg : msg_t;
+}
+
+let msg_of_string s =  
+  match unserialize s with
+    | Oblock (0, [| m_session_id; msg |]) ->
+        let m_session_id = to_option to_string m_session_id in
+        let msg =
+          match msg with
+            | Onumber 0. -> Noop
+            | Oblock (0, [| txn_id; proc; arg |]) -> Call (to_int txn_id, to_string proc, arg)
+            | Oblock (1, [| txn_id; res |]) -> Res (to_int txn_id, res)
+            | Oblock (2, [| txn_id; msg |]) -> Fail (to_int txn_id, to_string msg)
+            | _ -> invalid "msg_t" in
+        { m_session_id = m_session_id; msg = msg }
+    | _ -> invalid "msg"
+
+let string_of_msg { m_session_id = m_session_id; msg = msg } =
+  let m_session_id = of_option of_string m_session_id in
+  let msg =
+    match msg with
+      | Noop -> Onumber 0.
+      | Call (txn_id, proc, arg) -> Oblock (0, [| of_int txn_id; of_string proc; arg |])
+      | Res (txn_id, res) -> Oblock (1, [| of_int txn_id; res |])
+      | Fail (txn_id, msg) -> Oblock (2, [| of_int txn_id; of_string msg |]) in
+  serialize (Oblock (0, [| m_session_id; msg |]))
+
 module type Monad =
 sig
   type 'a t
@@ -218,13 +253,15 @@ module Handler (M : Monad) =
 struct
   let handler procs body =
     try
-      let (proc_name, arg) =
-        match unserialize body with
-          | Oblock (0, [| Ostring proc_name; arg |]) -> proc_name, arg
-          | _ -> raise (Invalid_argument "bad request") in
-      let proc =
-        try List.assoc proc_name procs
-        with Not_found -> raise (Invalid_argument ("bad request " ^ proc_name)) in
-      M.bind (proc arg) (fun s -> M.return (serialize s))
+      let msg = msg_of_string body in
+      let reply =
+        match msg.msg with
+          | Call (txn_id, proc, arg) ->
+              let proc =
+                try List.assoc proc procs
+                with Not_found -> raise (Invalid_argument ("bad proc " ^ proc)) in
+              M.bind (proc arg) (fun res -> M.return (Res (txn_id, res)))
+          | Noop | Res _ | Fail _ -> raise (Invalid_argument "unsupported message") in
+      M.bind reply (fun reply -> M.return (string_of_msg { m_session_id = msg.m_session_id; msg = reply }))
     with e -> M.fail e
 end

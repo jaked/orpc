@@ -23,5 +23,6 @@ type t
 
 val create : string -> t
 
-val sync_call : t -> string -> Obj.t -> Obj.t
-val add_call : t -> string -> Obj.t -> ((unit -> Obj.t) -> unit) -> unit
+val call : t -> string -> Obj.t -> ((unit -> Obj.t) -> unit) -> unit
+
+val bind : t -> (string * (Obj.t -> ((unit -> Obj.t) -> unit) -> unit)) list -> unit
