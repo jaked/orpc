@@ -1,1 +1,1 @@
-<orpc_js_client.ml> : pkg_ocamljs,pkg_javascript
+<orpc_js_client.ml> : pkg_ocamljs,pkg_javascript,pkg_dom

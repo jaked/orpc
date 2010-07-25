@@ -52,6 +52,7 @@ let do_file fn =
       then [
         "js_aux", Gen_js_aux.gen_mli, Gen_js_aux.gen_ml;
         "js_clnt", Gen_js_clnt.gen_mli, Gen_js_clnt.gen_ml;
+        "js_comet_clnt", Gen_js_comet_clnt.gen_mli, Gen_js_comet_clnt.gen_ml;
         "js_srv", Gen_js_srv.gen_mli, Gen_js_srv.gen_ml;
         "trace", Gen_trace.gen_mli, Gen_trace.gen_ml;
       ] else [
