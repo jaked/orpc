@@ -1,0 +1,7 @@
+You need ocamljs and cohttpserver for this example. Run the server with
+
+  ./server.byte
+
+then point your browser at
+
+  http://localhost:9007/

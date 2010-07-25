@@ -1,0 +1,13 @@
+<proto.ml> : pkg_lwt
+<comet.ml> : pkg_lwt
+<proto_js_clnt.ml*> : pkg_lwt,pkg_orpc-js-client
+<comet_js_comet_clnt.ml*> : pkg_lwt,pkg_orpc-js-client
+<clicks.ml> : pkg_lwt,pkg_orpc-js-client,pkg_dom
+<clicks.js> : pkg_lwt,pkg_orpc-js-client,pkg_dom
+
+<proto_js_srv.ml*> : pkg_lwt,pkg_nethttpd,pkg_orpc-js-server
+<proto_js_aux.ml*> : pkg_orpc-js-server
+<comet_js_aux.ml*> : pkg_orpc-js-server
+<server.ml> : syntax_camlp4o,pkg_lwt.syntax,pkg_cohttpserver,pkg_orpc-js-server,pkg_lwt.unix
+<server.byte> : pkg_cohttpserver,pkg_orpc-js-server,pkg_lwt.unix
+
