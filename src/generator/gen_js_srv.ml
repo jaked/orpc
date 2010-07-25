@@ -33,15 +33,15 @@ let gen_mli name (typedefs, excs, funcs, kinds) =
   let modules =
     List.map
       (fun kind ->
-         let mt, monad =
+         let mt, ret =
            match kind with
              | Ik_abstract -> assert false
-             | Sync -> "Sync", <:ident< Orpc_js_server.Sync >>
-             | Lwt -> "Lwt", <:ident< Lwt >> in
+             | Sync -> "Sync", <:ctyp< string >>
+             | Lwt -> "Lwt", <:ctyp< string Lwt.t >> in
          <:sig_item<
            module $uid:mt$ : functor (A : $uid:name$.$uid:mt$) ->
            sig
-             val handler : string -> string $id:monad$.t
+             val handler : string -> $ret$
            end
          >>)
       kinds in
@@ -109,8 +109,9 @@ let gen_ml name (typedefs, excs, funcs, kinds) =
          <:str_item<
            module $uid:mt$ (A : $uid:name$.$uid:mt$) =
            struct
-             module H = Orpc_js_server.Handler($id:monad$)
-             let handler = H.handler $G.conses (List.map func funcs)$
+             let handler =
+               let module H = Orpc_js_server.Handler($id:monad$) in
+               H.handler $G.conses (List.map func funcs)$
            end
          >>)
       kinds in
