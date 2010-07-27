@@ -195,5 +195,4 @@ let spec = {
   auto_close = true;
 }
 
-let _ = Http_common.debug := true
 let _ = Lwt_main.run (Http_daemon.main spec)

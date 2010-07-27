@@ -13,8 +13,10 @@ Dom.window#_set_onload begin fun () ->
 
   let module Server = Proto_js_clnt.Lwt(struct let with_client f = f client end) in
 
-  let on_connect _ = ignore(Server.clicks () >>= fun n -> set_clicks n; Lwt.return ()) in
-  Orpc_js_client.connect client on_connect;
+  ignore
+    (Orpc_js_client.connect client >>=
+       Server.clicks >>=
+         fun n -> set_clicks n; Lwt.return ());
 
   let click = (Dom.document#getElementById "click" : Dom.button) in
   click#_set_onclick (fun _ ->
