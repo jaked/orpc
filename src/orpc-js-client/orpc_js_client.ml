@@ -48,9 +48,11 @@ type msg =
 type msgs = {
   m_session_id : string option;
   msgs : msg array;
+  sync : bool;
 }
 
 type t = {
+  transport : [ `Xhr | `Xhr_long_poll ];
   url : string;
   mutable txn_id : int;
   mutable session_id : string option;
@@ -60,7 +62,8 @@ type t = {
   mutable req_in_flight : bool;
 }
 
-let create url = {
+let create ?(transport=`Xhr) url = {
+  transport = transport;
   url = url;
   txn_id = 0;
   session_id = None;
@@ -73,7 +76,7 @@ let create url = {
 let rec req t =
   if not t.req_in_flight && t.queued_msgs <> []
   then
-    let msgs = { m_session_id = t.session_id; msgs = Array.of_list (List.rev t.queued_msgs); } in
+    let msgs = { m_session_id = t.session_id; msgs = Array.of_list (List.rev t.queued_msgs); sync = t.transport = `Xhr; } in
     t.queued_msgs <- [];
     let xhr = Dom.new_XMLHttpRequest () in
     xhr#_set_onreadystatechange begin fun () ->
@@ -81,8 +84,7 @@ let rec req t =
         | 4 ->
             xhr#_set_onreadystatechange ignore;
             t.req_in_flight <- false;
-            recv t xhr;
-            req t
+            ignore (Dom.window#setTimeout (fun () -> recv t xhr; req t) 0.)
       | _ -> ()
   end;
   xhr#open_ "POST" t.url true;
@@ -96,8 +98,7 @@ and poll ?on_connect t =
     match xhr#_get_readyState with
       | 4 ->
           xhr#_set_onreadystatechange ignore;
-          recv ?on_connect t xhr;
-          poll t
+          ignore (Dom.window#setTimeout (fun () -> recv ?on_connect t xhr; poll t) 0.)
       | _ -> ()
   end;
   let url = t.url ^ "?nonce=" ^ string_of_float (Javascript.new_Date ())#getTime in
@@ -117,7 +118,7 @@ and recv ?on_connect t xhr =
   then begin
     (* don't know the txn_ids, so fail all *)
     let r = let s = string_of_int xhr#_get_status ^ xhr#_get_statusText in (fun () -> raise (Failure s)) in
-    Hashtbl.iter (fun _ f -> try f r with e -> ()) t.pending_calls;
+    Hashtbl.iter (fun _ f -> try f r with _ -> ()) t.pending_calls;
     Hashtbl.clear t.pending_calls;
     match on_connect with
       | None -> ()
@@ -125,56 +126,58 @@ and recv ?on_connect t xhr =
   end
   else
     let msgs = Obj.obj (unserialize xhr#_get_responseText) in
+    handle_msgs ?on_connect t msgs
 
-    begin match msgs.m_session_id with
-      | None -> ()
-      | Some _ as id ->
-          match t.session_id with
-            | Some _ -> t.session_id <- id
-            | None ->
-                t.session_id <- id;
-                match on_connect with
-                  | None -> ()
-                  | Some f -> f (fun () -> ())
-    end;
+and handle_msgs ?on_connect t msgs =
+  begin match msgs.m_session_id with
+    | None -> ()
+    | Some _ as id ->
+        match t.session_id with
+          | Some _ -> t.session_id <- id
+          | None ->
+              t.session_id <- id;
+              match on_connect with
+                | None -> ()
+                | Some f -> f (fun () -> ())
+  end;
 
-    Array.iter
-      (function
-         | Call (txn_id, proc, arg) ->
-             begin
-               let proc =
-                 match t.procs with
-                   | None -> None
-                   | Some procs -> try Some (List.assoc proc procs) with Not_found -> None in
-               match proc with
-                 | None -> send t (Fail (txn_id, Printexc.to_string (Invalid_argument "bad proc")))
-                 | Some proc ->
-                     proc arg begin fun r ->
-                       let reply =
-                         try Res (txn_id, r ())
-                         with e -> Fail (txn_id, Printexc.to_string e) in
-                       send t reply
-                     end
-             end
-         | Res (txn_id, o) ->
-             begin
-               let call = try Some (Hashtbl.find t.pending_calls txn_id) with Not_found -> None in
-               match call with
-                 | None -> ()
-                 | Some call ->
-                     Hashtbl.remove t.pending_calls txn_id;
-                     call (fun () -> o)
-             end
-         | Fail (txn_id, s) ->
-             begin
-               let call = try Some (Hashtbl.find t.pending_calls txn_id) with Not_found -> None in
-               match call with
-                 | None -> ()
-                 | Some call ->
-                     Hashtbl.remove t.pending_calls txn_id;
-                     call (fun () -> raise (Failure s))
-             end)
-      msgs.msgs
+  let handle_msg = function
+    | Call (txn_id, proc, arg) ->
+        begin
+          let proc =
+            match t.procs with
+              | None -> None
+              | Some procs -> try Some (List.assoc proc procs) with Not_found -> None in
+          match proc with
+            | None -> send t (Fail (txn_id, Printexc.to_string (Invalid_argument "bad proc")))
+            | Some proc ->
+                proc arg begin fun r ->
+                  let reply =
+                    try Res (txn_id, r ())
+                    with e -> Fail (txn_id, Printexc.to_string e) in
+                  send t reply
+                end
+        end
+    | Res (txn_id, o) ->
+        begin
+          let call = try Some (Hashtbl.find t.pending_calls txn_id) with Not_found -> None in
+          match call with
+            | None -> ()
+            | Some call ->
+                Hashtbl.remove t.pending_calls txn_id;
+                call (fun () -> o)
+        end
+    | Fail (txn_id, s) ->
+        begin
+          let call = try Some (Hashtbl.find t.pending_calls txn_id) with Not_found -> None in
+          match call with
+            | None -> ()
+            | Some call ->
+                Hashtbl.remove t.pending_calls txn_id;
+                call (fun () -> raise (Failure s))
+        end in
+
+  Array.iter handle_msg msgs.msgs
 
 let call t proc arg pass_reply =
   let txn_id = t.txn_id in
@@ -183,7 +186,11 @@ let call t proc arg pass_reply =
   send t (Call (txn_id, proc, arg))
 
 let bind t procs =
-  t.procs <- Some procs
+  match t.transport with
+    | `Xhr -> raise (Failure "bind not supported for `Xhr transport");
+    | _ -> t.procs <- Some procs
 
 let connect t on_connect =
-  poll ~on_connect t
+  match t.transport with
+    | `Xhr -> raise (Failure "connect not supported for `Xhr transport");
+    | _ -> poll ~on_connect t

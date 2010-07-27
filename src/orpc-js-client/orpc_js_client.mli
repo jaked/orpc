@@ -21,7 +21,7 @@
 
 type t
 
-val create : string -> t
+val create : ?transport:[`Xhr|`Xhr_long_poll] -> string -> t
 
 val call : t -> string -> Obj.t -> ((unit -> Obj.t) -> unit) -> unit
 

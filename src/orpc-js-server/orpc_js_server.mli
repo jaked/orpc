@@ -63,6 +63,7 @@ type msg =
 type msgs = {
   m_session_id : string option;
   msgs : msg array;
+  sync : bool;
 }
 
 val msgs_of_string : string -> msgs

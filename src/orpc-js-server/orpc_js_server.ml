@@ -206,6 +206,7 @@ type msg =
 type msgs = {
   m_session_id : string option;
   msgs : msg array;
+  sync : bool;
 }
 
 let to_msg = function
@@ -220,15 +221,16 @@ let of_msg = function
   | Fail (txn_id, msg) -> Oblock (2, [| of_int txn_id; of_string msg |])
 
 let to_msgs = function
-  | Oblock (0, [| m_session_id; msgs |]) ->
+  | Oblock (0, [| m_session_id; msgs; sync |]) ->
       {
         m_session_id = to_option to_string m_session_id;
-        msgs = to_array to_msg msgs
+        msgs = to_array to_msg msgs;
+        sync = to_bool sync;
       }
   | _ -> invalid "msg"
 
-let of_msgs { m_session_id = m_session_id; msgs = msgs } =
-  Oblock (0, [| of_option of_string m_session_id; of_array of_msg msgs |])
+let of_msgs { m_session_id = m_session_id; msgs = msgs; sync = sync } =
+  Oblock (0, [| of_option of_string m_session_id; of_array of_msg msgs; of_bool sync; |])
 
 let msgs_of_string s = to_msgs (unserialize s)
 let string_of_msgs msgs = serialize (of_msgs msgs)
@@ -255,13 +257,13 @@ struct
     try
       let msgs = msgs_of_string body in
       let reply =
-        match msgs.msgs with
-          | [| Call (txn_id, proc, arg) |] ->
+        match msgs.sync, msgs.msgs with
+          | true, [| Call (txn_id, proc, arg) |] ->
               let proc =
                 try List.assoc proc procs
                 with Not_found -> raise (Invalid_argument ("bad proc " ^ proc)) in
               M.bind (proc arg) (fun res -> M.return (Res (txn_id, res)))
           | _ -> raise (Invalid_argument "unsupported msgs") in
-      M.bind reply (fun reply -> M.return (string_of_msgs { m_session_id = msgs.m_session_id; msgs = [| reply |] }))
+      M.bind reply (fun reply -> M.return (string_of_msgs { m_session_id = msgs.m_session_id; msgs = [| reply |]; sync = true; }))
     with e -> M.fail e
 end
