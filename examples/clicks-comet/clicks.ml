@@ -3,7 +3,7 @@ let (>>=) = Lwt.(>>=)
 ;;
 
 Dom.window#_set_onload begin fun () ->
-  let client = Orpc_js_client.create "/clicks" in
+  let client = Orpc_js_client.create ~transport:`Xhr_long_poll "/clicks" in
 
   let clicks = (Dom.document#getElementById "clicks" : Dom.span) in
   let set_clicks n = clicks#_set_innerHTML (string_of_int n) in

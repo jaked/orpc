@@ -21,7 +21,7 @@ let sessions_by_conn_id = Hashtbl.create 17
 
 let reply sess out =
   (* XXX don't send session_id if req already had the right one *)
-  let msgs = { Orpc_js_server.m_session_id = Some sess.session_id; msgs = Array.of_list (List.rev sess.queued_msgs); } in
+  let msgs = { Orpc_js_server.m_session_id = Some sess.session_id; msgs = Array.of_list (List.rev sess.queued_msgs); sync = false; } in
   sess.queued_msgs <- [];
   let body = Orpc_js_server.string_of_msgs msgs in
   Http_daemon.respond ~body out
@@ -183,21 +183,17 @@ let conn_closed conn_id =
 
 let exn_handler exn out = Lwt.return ()
 
-let main () =
-  (* Http_common.debug := true; *)
-  let spec = {
-    Http_daemon.address = "192.168.206.129";
-    auth = `None;
-    callback = callback;
-    conn_closed = conn_closed;
-    port = 9007;
-    root_dir = None;
-    exn_handler = exn_handler;
-    timeout = None;
-    auto_close = true;
-  } in
-  Lwt_main.run (Http_daemon.main spec)
+let spec = {
+  Http_daemon.address = "0.0.0.0";
+  auth = `None;
+  callback = callback;
+  conn_closed = conn_closed;
+  port = 9007;
+  root_dir = None;
+  exn_handler = exn_handler;
+  timeout = None;
+  auto_close = true;
+}
 
-;;
-
-main ()
+let _ = Http_common.debug := true
+let _ = Lwt_main.run (Http_daemon.main spec)
