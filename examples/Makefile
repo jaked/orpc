@@ -3,11 +3,15 @@
 DIRS=matrixmult modules
 
 ifeq ($(ENABLE_OCAMLJS),1)
-DIRS += clicks
+  DIRS += clicks
+
+  ifeq ($(ENABLE_COHTTPSERVER),1)
+    DIRS += clicks-cohttp clicks-comet
+  endif
 endif
 
 ifeq ($(ENABLE_TYPE_CONV),1)
-DIRS += external
+  DIRS += external
 endif
 
 all:

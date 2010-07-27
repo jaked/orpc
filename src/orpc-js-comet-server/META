@@ -1,0 +1,6 @@
+name="Orpc-js-comet-server"
+version="0.3"
+description="Orpc-js support for Comet server"
+requires = "orpc-js-server,cohttpserver"
+archive(byte) = "orpc-js-comet-server.cma"
+archive(native) = "orpc-js-comet-server.cmxa"

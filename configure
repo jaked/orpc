@@ -43,6 +43,7 @@ get_path () {
 set_defaults () {
     enable_ocamljs=1
     enable_type_conv=1
+    enable_cohttpserver=1
     bindir=`dirname $ocamlc`
     libdir=`ocamlc -where`
 }
@@ -58,9 +59,10 @@ exec_suffix=""
 
 ehelp_ocamljs="Enable/disable parts that depend on ocamljs"
 ehelp_type_conv="Enable/disable parts that depend on type-conv"
+ehelp_cohttpserver="Enable/disable parts that depend on Cohttpserver"
 
 # Which options exist? eoptions for enable/disable, woptions for with/without:
-eoptions="ocamljs type_conv"
+eoptions="ocamljs type_conv cohttpserver"
 
 check_library () {
     # $1: the name of the library (findlib)
@@ -194,32 +196,6 @@ else
 fi
 
 ######################################################################
-# Check that ocamljs is available:
-
-if [ $enable_ocamljs -gt 0 ]; then
-    printf "%s" "Checking for ocamljs... "
-    if check_libraryjs ocamljs; then
-        echo "found"
-    else
-        echo "not found"
-        echo "Ocamljs is required for -enable-ocamljs."
-        echo "Try -disable-ocamljs, or get ocamljs from:"
-        echo "http://code.google.com/p/ocamljs/"
-        exit 1
-    fi
-
-    printf "%s" "Checking for nethttpd... "
-    if check_library nethttpd; then
-        echo "found"
-    else
-        echo "not found"
-        echo "Required library nethttpd not found!"
-	echo "Make sure Ocamlnet is configured -with-nethttpd."
-        exit 1
-    fi
-fi
-
-######################################################################
 # Check that type-conv is available:
 
 if [ $enable_type_conv -gt 0 ]; then
@@ -236,6 +212,38 @@ if [ $enable_type_conv -gt 0 ]; then
 fi
 
 ######################################################################
+# Check that ocamljs is available:
+
+if [ $enable_ocamljs -gt 0 ]; then
+    printf "%s" "Checking for ocamljs... "
+    if check_libraryjs ocamljs; then
+        echo "found"
+    else
+        echo "not found"
+        echo "Ocamljs is required for -enable-ocamljs."
+        echo "Try -disable-ocamljs, or get ocamljs from:"
+        echo "http://code.google.com/p/ocamljs/"
+        exit 1
+    fi
+fi
+
+######################################################################
+# Check that cohttpserver is available:
+
+if [ $enable_ocamljs -gt 0 -a $enable_cohttpserver -gt 0 ]; then
+    printf "%s" "Checking for Cohttpserver... "
+    if check_library "cohttpserver"; then
+        echo "found"
+    else
+        echo "not found"
+        echo "Cohttpserver is required for -enable-cohttpserver."
+        echo "Try -disable-cohttpserver, or get Cohttpserver from:"
+        echo "http://github.com/jaked/cohttpserver/"
+        exit 1
+    fi
+fi
+
+######################################################################
 # Summary
 
 echo
@@ -247,6 +255,10 @@ pkglist="generator orpc orpc-onc"
 
 if [ $enable_ocamljs -gt 0 ]; then
     pkglist="$pkglist orpc-js-client orpc-js-server"
+fi
+
+if [ $enable_ocamljs -gt 0 -a $enable_cohttpserver -gt 0 ]; then
+    pkglist="$pkglist orpc-js-comet-server"
 fi
 
 ######################################################################
@@ -269,6 +281,7 @@ LIBDIR = $libdir
 
 ENABLE_OCAMLJS = $enable_ocamljs
 ENABLE_TYPE_CONV = $enable_type_conv
+ENABLE_COHTTPSERVER = $enable_cohttpserver
 _EOF_
 
 ######################################################################
