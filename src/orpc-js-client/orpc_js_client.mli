@@ -26,3 +26,5 @@ val create : string -> t
 val call : t -> string -> Obj.t -> ((unit -> Obj.t) -> unit) -> unit
 
 val bind : t -> (string * (Obj.t -> ((unit -> Obj.t) -> unit) -> unit)) list -> unit
+
+val connect : t -> ((unit -> unit) -> unit) -> unit
