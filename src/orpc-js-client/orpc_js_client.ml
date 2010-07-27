@@ -56,8 +56,8 @@ type t = {
   url : string;
   mutable txn_id : int;
   mutable session_id : string option;
-  mutable procs : (string * (Obj.t -> ((unit -> Obj.t) -> unit) -> unit)) list option;
-  pending_calls : (int, (unit -> Obj.t) -> unit) Hashtbl.t;
+  mutable procs : (string * (Obj.t -> Obj.t Lwt.t)) list option;
+  pending_calls : (int, Obj.t Lwt.u) Hashtbl.t;
   mutable queued_msgs : msg list;
   mutable req_in_flight : bool;
 }
@@ -73,124 +73,131 @@ let create ?(transport=`Xhr) url = {
   req_in_flight = false;
 }
 
-let rec req t =
-  if not t.req_in_flight && t.queued_msgs <> []
+let rec req c =
+  if not c.req_in_flight && c.queued_msgs <> []
   then
-    let msgs = { m_session_id = t.session_id; msgs = Array.of_list (List.rev t.queued_msgs); sync = t.transport = `Xhr; } in
-    t.queued_msgs <- [];
+    let msgs = { m_session_id = c.session_id; msgs = Array.of_list (List.rev c.queued_msgs); sync = c.transport = `Xhr; } in
+    c.queued_msgs <- [];
     let xhr = Dom.new_XMLHttpRequest () in
     xhr#_set_onreadystatechange begin fun () ->
       match xhr#_get_readyState with
         | 4 ->
             xhr#_set_onreadystatechange ignore;
-            t.req_in_flight <- false;
-            ignore (Dom.window#setTimeout (fun () -> recv t xhr; req t) 0.)
+            c.req_in_flight <- false;
+            ignore (Dom.window#setTimeout (fun () -> recv c xhr; req c) 0.)
       | _ -> ()
   end;
-  xhr#open_ "POST" t.url true;
+  xhr#open_ "POST" c.url true;
   xhr#setRequestHeader "Content-Type" "text/plain; charset=utf-8";
   xhr#send (serialize (Obj.repr msgs));
-  t.req_in_flight <- true
+  c.req_in_flight <- true
 
-and poll ?on_connect t =
+and poll ?on_connect c =
   let xhr = Dom.new_XMLHttpRequest () in
   xhr#_set_onreadystatechange begin fun () ->
     match xhr#_get_readyState with
       | 4 ->
           xhr#_set_onreadystatechange ignore;
-          ignore (Dom.window#setTimeout (fun () -> recv ?on_connect t xhr; poll t) 0.)
+          ignore (Dom.window#setTimeout (fun () -> recv ?on_connect c xhr; poll c) 0.)
       | _ -> ()
   end;
-  let url = t.url ^ "?nonce=" ^ string_of_float (Javascript.new_Date ())#getTime in
+  let url = c.url ^ "?nonce=" ^ string_of_float (Javascript.new_Date ())#getTime in
   let url =
-    match t.session_id with
+    match c.session_id with
       | None -> url
       | Some session_id -> url ^ "&session_id=" ^ session_id in
   xhr#open_ "GET" url true;
   xhr#send (Ocamljs.null ());
 
-and send t msg =
-  t.queued_msgs <- msg :: t.queued_msgs;
-  req t
+and send c msg =
+  c.queued_msgs <- msg :: c.queued_msgs;
+  req c
 
-and recv ?on_connect t xhr =
+and recv ?on_connect c xhr =
   if xhr#_get_status <> 200
   then begin
     (* don't know the txn_ids, so fail all *)
-    let r = let s = string_of_int xhr#_get_status ^ xhr#_get_statusText in (fun () -> raise (Failure s)) in
-    Hashtbl.iter (fun _ f -> try f r with _ -> ()) t.pending_calls;
-    Hashtbl.clear t.pending_calls;
+    let e = Failure (string_of_int xhr#_get_status) in
+    Hashtbl.iter (fun _ u -> Lwt.wakeup_exn u e) c.pending_calls;
+    Hashtbl.clear c.pending_calls;
     match on_connect with
       | None -> ()
-      | Some f -> f r
+      | Some u -> Lwt.wakeup_exn u e
   end
   else
     let msgs = Obj.obj (unserialize xhr#_get_responseText) in
-    handle_msgs ?on_connect t msgs
+    handle_msgs ?on_connect c msgs
 
-and handle_msgs ?on_connect t msgs =
+and handle_msgs ?on_connect c msgs =
   begin match msgs.m_session_id with
     | None -> ()
     | Some _ as id ->
-        match t.session_id with
-          | Some _ -> t.session_id <- id
+        match c.session_id with
+          | Some _ -> c.session_id <- id
           | None ->
-              t.session_id <- id;
+              c.session_id <- id;
               match on_connect with
                 | None -> ()
-                | Some f -> f (fun () -> ())
+                | Some u -> Lwt.wakeup u ()
   end;
 
   let handle_msg = function
     | Call (txn_id, proc, arg) ->
         begin
           let proc =
-            match t.procs with
+            match c.procs with
               | None -> None
               | Some procs -> try Some (List.assoc proc procs) with Not_found -> None in
           match proc with
-            | None -> send t (Fail (txn_id, Printexc.to_string (Invalid_argument "bad proc")))
+            | None -> send c (Fail (txn_id, Printexc.to_string (Invalid_argument "bad proc")))
             | Some proc ->
-                proc arg begin fun r ->
-                  let reply =
-                    try Res (txn_id, r ())
-                    with e -> Fail (txn_id, Printexc.to_string e) in
-                  send t reply
-                end
+                ignore
+                  (lwt reply =
+                     Lwt.try_bind
+                       (fun () -> proc arg)
+                       (fun r -> Lwt.return (Res (txn_id, r)))
+                       (fun e -> Lwt.return (Fail (txn_id, Printexc.to_string e))) in
+                   send c reply;
+                   Lwt.return ())
         end
     | Res (txn_id, o) ->
         begin
-          let call = try Some (Hashtbl.find t.pending_calls txn_id) with Not_found -> None in
+          let call = try Some (Hashtbl.find c.pending_calls txn_id) with Not_found -> None in
           match call with
             | None -> ()
-            | Some call ->
-                Hashtbl.remove t.pending_calls txn_id;
-                call (fun () -> o)
+            | Some u ->
+                Hashtbl.remove c.pending_calls txn_id;
+                Lwt.wakeup u o
         end
     | Fail (txn_id, s) ->
         begin
-          let call = try Some (Hashtbl.find t.pending_calls txn_id) with Not_found -> None in
+          let call = try Some (Hashtbl.find c.pending_calls txn_id) with Not_found -> None in
           match call with
             | None -> ()
-            | Some call ->
-                Hashtbl.remove t.pending_calls txn_id;
-                call (fun () -> raise (Failure s))
+            | Some u ->
+                Hashtbl.remove c.pending_calls txn_id;
+                Lwt.wakeup_exn u (Failure s)
         end in
 
   Array.iter handle_msg msgs.msgs
 
-let call t proc arg pass_reply =
-  let txn_id = t.txn_id in
-  t.txn_id <- t.txn_id + 1;
-  Hashtbl.replace t.pending_calls txn_id pass_reply;
-  send t (Call (txn_id, proc, arg))
+let call c proc arg =
+  let t, u = Lwt.wait () in
+  let txn_id = c.txn_id in
+  c.txn_id <- c.txn_id + 1;
+  Hashtbl.replace c.pending_calls txn_id u;
+  send c (Call (txn_id, proc, arg));
+  t
 
-let bind t procs =
-  match t.transport with
+let bind c procs =
+  match c.transport with
     | `Xhr -> raise (Failure "bind not supported for `Xhr transport");
-    | _ -> t.procs <- Some procs
+    | _ -> c.procs <- Some procs
 
-let connect t on_connect =
-  match t.transport with
+let connect c =
+  match c.transport with
     | `Xhr -> raise (Failure "connect not supported for `Xhr transport");
-    | _ -> poll ~on_connect t
+    | _ ->
+        let t, u = Lwt.wait () in
+        poll ~on_connect:u c;
+        t

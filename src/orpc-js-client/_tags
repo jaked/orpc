@@ -1,1 +1,1 @@
-<orpc_js_client.ml> : pkg_ocamljs,pkg_javascript,pkg_dom
+<orpc_js_client.ml*> : syntax_camlp4o,pkg_lwt.syntax,pkg_ocamljs,pkg_javascript,pkg_dom,pkg_lwt

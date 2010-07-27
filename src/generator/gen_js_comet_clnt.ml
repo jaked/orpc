@@ -53,57 +53,48 @@ let gen_ml name (typedefs, excs, funcs, kinds) =
       (fun kind ->
          let mt = G.string_of_kind kind in
          let func (_, id, args, res) =
+           let body =
+             let (ps, _) = G.vars args in
+             <:expr<
+               let ( $tup:paCom_of_list ps$ ) = Obj.obj x0 in
+               $G.args_apps <:expr< A.$lid:id$ >> args$
+             >> in
            match kind with
              | Ik_abstract -> assert false
 
              | Sync ->
-                 let body =
-                   let (ps, _) = G.vars args in
+                 if has_excs
+                 then
                    <:expr<
-                     let ( $tup:paCom_of_list ps$ ) = Obj.obj x0 in
-                     $G.args_apps <:expr< A.$lid:id$ >> args$
-                   >> in
-                 <:expr<
-                   ($`str:id$,
-                    fun x0 pass_reply ->
-                      let r =
-                        try
-                          let r =
-                            Obj.repr
-                              $if has_excs
-                               then <:expr< Orpc.pack_orpc_result (fun () -> $body$) >>
-                               else body$
-                          in (fun () -> r)
-                        with e -> (fun () -> raise e) in
-                      pass_reply r)
-                 >>
+                     ($`str:id$,
+                      fun x0 ->
+                        Lwt.return (Obj.magic (Orpc.pack_orpc_result (fun () -> $body$))))
+                   >>
+                 else
+                   <:expr<
+                     ($`str:id$,
+                      fun x0 ->
+                        try Lwt.return (Obj.repr $body$)
+                        with e -> Lwt.fail e)
+                   >>
 
              | Lwt ->
-                 let (ps, _) = G.vars args in
-                 <:expr<
-                   ($`str:id$,
-                    fun x0 pass_reply ->
-                      Lwt.ignore_result
-                        (Lwt.try_bind
-                           (fun () ->
-                              let ( $tup:paCom_of_list ps$ ) = Obj.obj x0 in
-                              $G.args_apps <:expr< A.$lid:id$ >> args$)
-                           (fun v ->
-                              let r =
-                                Obj.repr $if has_excs
-                                          then <:expr< Orpc.Orpc_success v >>
-                                          else <:expr< v >>$ in
-                              pass_reply (fun () -> r);
-                              Lwt.return ())
-                           (fun e ->
-                              pass_reply
-                              $if has_excs
-                               then
-                                 (* XXX check for declared exception types *)
-                                 <:expr< let r = Obj.repr (Orpc.Orpc_failure e) in (fun () -> r) >>
-                               else <:expr< fun () -> raise e >>$;
-                              Lwt.return ())))
-                 >> in
+                 if has_excs
+                 then
+                   <:expr<
+                     ($`str:id$,
+                      fun x0 ->
+                        Obj.magic
+                          (Lwt.try_bind
+                             (fun () -> $body$)
+                             (fun v -> Lwt.return (Orpc.Orpc_success (Obj.repr v)))
+                             (fun e -> Lwt.return (Orpc.Orpc_failure e)))) (* XXX check for declared exception types *)
+                   >>
+                 else
+                   <:expr<
+                     ($`str:id$,
+                      fun x0 -> Obj.magic $body$)
+                   >> in
 
         <:str_item<
           module $uid:mt$(A : $uid:name$.$uid:mt$) =

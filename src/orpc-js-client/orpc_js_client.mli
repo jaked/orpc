@@ -23,8 +23,8 @@ type t
 
 val create : ?transport:[`Xhr|`Xhr_long_poll] -> string -> t
 
-val call : t -> string -> Obj.t -> ((unit -> Obj.t) -> unit) -> unit
+val call : t -> string -> Obj.t -> Obj.t Lwt.t
 
-val bind : t -> (string * (Obj.t -> ((unit -> Obj.t) -> unit) -> unit)) list -> unit
+val bind : t -> (string * (Obj.t -> Obj.t Lwt.t)) list -> unit
 
-val connect : t -> ((unit -> unit) -> unit) -> unit
+val connect : t -> unit Lwt.t

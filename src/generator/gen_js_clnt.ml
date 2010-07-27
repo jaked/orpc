@@ -58,16 +58,15 @@ let gen_ml name (typedefs, excs, funcs, kinds) =
             | Sync -> <:str_item< >>
             | Lwt ->
                 let body =
-                  <:expr<
-                    let t, u = Lwt.wait () in
-                    C.with_client (fun c ->
-                      Orpc_js_client.call c $`str:id$ (Obj.repr x0)
-                        (fun g ->
-                          $if has_excs
-                          then <:expr< try Lwt.wakeup u (unpack_orpc_result g) with e -> Lwt.wakeup_exn u e >>
-                          else <:expr< Lwt.wakeup u (Obj.obj (g ())) >>$));
-                    t
-                  >> in
+                  if has_excs
+                  then
+                    <:expr<
+                      C.with_client (fun c -> Obj.magic (Lwt.bind (Orpc_js_client.call c $`str:id$ (Obj.repr x0)) unpack_orpc_result))
+                    >>
+                  else
+                    <:expr<
+                      C.with_client (fun c -> Obj.magic (Orpc_js_client.call c $`str:id$ (Obj.repr x0)))
+                    >> in
 
                 <:str_item<
                   let $lid:id$ =
@@ -102,17 +101,17 @@ let gen_ml name (typedefs, excs, funcs, kinds) =
               (List.mapi (fun _ i -> <:expr< Obj.obj (Obj.field o $`int:i+1$) >>) ts)$
       >> in
     <:str_item<
-      let unpack_orpc_result g =
-        match Obj.obj (g ())
-        with
-          | Orpc.Orpc_success v -> v
+      let unpack_orpc_result r =
+        match Obj.obj r with
+          | Orpc.Orpc_success v -> Lwt.return v
           | Orpc.Orpc_failure e ->
               let o = Obj.repr e in
               let name = Obj.obj (Obj.field (Obj.field o 0) 0) in
-              let e = match name with
-                  $list:List.map mc excs$
-                | _ -> e in
-              raise e
+              let e =
+                match name with
+                  | $list:List.map mc excs$
+                  | _ -> e in
+              Lwt.fail e
     >> in
 
   <:str_item<
