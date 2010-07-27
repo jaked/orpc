@@ -53,6 +53,9 @@ val of_option : ('a -> obj) -> 'a option -> obj
 val of_array : ('a -> obj) -> 'a array -> obj
 val of_ref : ('a -> obj) -> 'a ref -> obj
 
+val orpc_js_aux_to_orpc_result : (obj -> 'a) -> (obj -> exn) -> obj -> ('a, exn) Orpc.orpc_result
+val orpc_js_aux_of_orpc_result : ('a -> obj) -> (exn -> obj) -> ('a, exn) Orpc.orpc_result -> obj
+
 val set_debug : (string -> unit) -> unit
 
 type msg =

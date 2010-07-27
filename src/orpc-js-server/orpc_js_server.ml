@@ -118,6 +118,16 @@ let of_array of'a a = Oblock (0, Array.map of'a a)
 
 let of_ref of'a x = Oblock (0, [| of'a !x |])
 
+let orpc_js_aux_to_orpc_result to'a to'b = function
+  | Oblock (0, [| x |]) -> Orpc.Orpc_success (to'a x)
+  | Oblock (1, [| x |]) -> Orpc.Orpc_failure (to'b x)
+  | _ -> raise (Invalid_argument "Orpc.result")
+
+let orpc_js_aux_of_orpc_result of'a of'b x =
+  match x with
+    | Orpc.Orpc_success x -> Oblock (0, [| of'a x |])
+    | Orpc.Orpc_failure x -> Oblock (1, [| of'b x |])
+
 let serialize o =
   let module B = Buffer in
   let b = B.create 1024 in

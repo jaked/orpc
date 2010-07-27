@@ -323,7 +323,7 @@ let gen_ml name (typedefs, excs, funcs, kinds) =
         | args -> Tuple (_loc, args) in
     let orpc_res =
       if has_excs
-      then Apply (_loc, ["Orpc_onc"], "orpc_result", [res; Apply (_loc, [], "exn", [])])
+      then Apply (_loc, ["Orpc_js_server"], "orpc_result", [res; Apply (_loc, [], "exn", [])])
       else res in
     let items aid arg =
       <:str_item<
