@@ -15,20 +15,18 @@ module Server =
 struct
   let n = ref 0
 
-  let clicks () = !n
+  let clicks () = Lwt.return !n
 
   let click () =
     incr n;
     Orpc_js_comet_server.iter_sessions server
       (fun _ sess ->
          let module M = Comet_js_comet_srv (struct let server = server let session = sess end) in
-         ignore (M.set_clicks !n))
+         ignore (M.set_clicks !n));
+    Lwt.return ()
 end
 
-let _ = Orpc_js_comet_server.bind server [
-  "click", (fun x0 -> Lwt.return (Proto_js_aux.of_click'res (Server.click (Proto_js_aux.to_click'arg x0))));
-  "clicks", (fun x0 -> Lwt.return (Proto_js_aux.of_clicks'res (Server.clicks (Proto_js_aux.to_clicks'arg x0))));
-]
+let _ = let module M = Proto_js_srv.Lwt(Server) in Orpc_js_comet_server.bind server M.funcs
 
 let callback conn_id req out =
   match Http_request.path req with
