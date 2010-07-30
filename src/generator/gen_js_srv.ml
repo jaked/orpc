@@ -54,7 +54,6 @@ let gen_mli name (typedefs, excs, funcs, kinds) =
 let gen_ml name (typedefs, excs, funcs, kinds) =
 
   let has_excs = excs <> [] in
-  let qual_id = G.qual_id_aux name in
 
   let aux_id id = <:ident< $uid:name ^ "_js_aux"$ . $lid:id$ >> in
   let to_arg id = aux_id ("to_" ^ id ^ "'arg") in
@@ -84,7 +83,7 @@ let gen_ml name (typedefs, excs, funcs, kinds) =
                   fun x0 ->
                     $id:of_res id$
                       $if has_excs
-                       then <:expr< pack_orpc_result (fun () -> $body$) >>
+                       then <:expr< Orpc.pack_orpc_result (fun () -> $body$) >>
                        else body$)
                 >>
       
@@ -97,7 +96,7 @@ let gen_ml name (typedefs, excs, funcs, kinds) =
                       Lwt.try_bind
                         (fun () -> $body$)
                         (fun v -> Lwt.return ($id:of_res id$ (Orpc.Orpc_success v)))
-                        (fun e -> Lwt.return ($id:of_res id$ (map_exns e))))
+                        (fun e -> Lwt.return ($id:of_res id$ (Orpc.Orpc_failure e))))
                   >>
                 else
                   <:expr<
@@ -122,24 +121,4 @@ let gen_ml name (typedefs, excs, funcs, kinds) =
          >>)
       kinds in
 
-  let pack_orpc_result () =
-    let mc (_,id,ts) =
-      match ts with
-        | [] -> <:match_case< $id:qual_id id$ -> Orpc.Orpc_failure e >>
-        | _ -> <:match_case< $id:qual_id id$ _ -> Orpc.Orpc_failure e >> in
-    <:str_item<
-      let map_exns e =
-        match e with
-          | $list:List.map mc excs$
-          | _ -> raise e
-
-      let pack_orpc_result f =
-        try Orpc.Orpc_success (f ())
-        with e -> map_exns e
-    >> in
-
-  <:str_item<
-    $if has_excs then pack_orpc_result () else <:str_item< >>$ ;;
-
-    $list:modules$
-  >>
+  <:str_item< $list:modules$ >>
