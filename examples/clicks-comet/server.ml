@@ -3,14 +3,6 @@ open Cohttpserver
 
 let server = Orpc_js_comet_server.create ()
 
-module Comet_js_comet_srv (S : sig val server : Orpc_js_comet_server.t val session : Orpc_js_comet_server.session end) =
-struct
-  let set_clicks n =
-    lwt o = Orpc_js_comet_server.call S.server S.session "set_clicks" (Comet_js_aux.of_set_clicks'arg n) in
-    try Lwt.return (Comet_js_aux.to_set_clicks'res o)
-    with e -> Lwt.fail e
-end
-
 module Server =
 struct
   let n = ref 0
@@ -21,7 +13,7 @@ struct
     incr n;
     Orpc_js_comet_server.iter_sessions server
       (fun _ sess ->
-         let module M = Comet_js_comet_srv (struct let server = server let session = sess end) in
+         let module M = Comet_js_comet_srv.Lwt(struct let server = server let session = sess end) in
          ignore (M.set_clicks !n));
     Lwt.return ()
 end

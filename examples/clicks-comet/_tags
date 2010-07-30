@@ -2,6 +2,7 @@
 <comet.ml> : pkg_lwt
 <proto_js_clnt.ml*> : pkg_lwt,pkg_orpc-js-client
 <comet_js_comet_clnt.ml*> : pkg_lwt,pkg_orpc-js-client
+<comet_js_comet_srv.ml*> : pkg_lwt,pkg_orpc-js-comet-server
 <clicks.ml> : pkg_lwt,pkg_orpc-js-client,pkg_dom
 <clicks.js> : pkg_lwt,pkg_orpc-js-client,pkg_dom
 
