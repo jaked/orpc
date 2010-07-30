@@ -59,53 +59,57 @@ let gen_ml name (typedefs, excs, funcs, kinds) =
   let to_arg id = aux_id ("to_" ^ id ^ "'arg") in
   let of_res id = aux_id ("of_" ^ id ^ "'res") in
 
-  let sync_func (_, id, args, _) =
-    <:expr<
-      ($`str:id$,
-      fun x0 ->
-        $id:of_res id$
-          $(fun body ->
-              if has_excs
-              then <:expr< pack_orpc_result (fun () -> $body$) >>
-              else body)
-            (let (ps, _) = G.vars args in
-             <:expr<
-               let ( $tup:paCom_of_list ps$ ) = $id:to_arg id$ x0 in
-               $G.args_apps <:expr< A.$lid:id$ >> args$
-             >>)$)
-    >> in
-
-  let lwt_func (_, id, args, _) =
-    <:expr<
-      ($`str:id$,
-      fun x0 ->
-        Lwt.try_bind
-          (fun () ->
-             $let (ps, _) = G.vars args in
-             <:expr<
-               let ( $tup:paCom_of_list ps$ ) = $id:to_arg id$ x0 in
-               $G.args_apps <:expr< A.$lid:id$ >> args$
-             >>$)
-          (fun v ->
-             Lwt.return
-               ($id:of_res id$
-                  ($if has_excs
-                   then <:expr< Orpc.Orpc_success v >>
-                   else <:expr< v >>$)))
-          (fun e ->
-             $if has_excs
-             then <:expr< Lwt.return ($id:of_res id$ (map_exns e)) >>
-             else <:expr< Lwt.fail e >>$))
-    >> in
-
   let modules =
     List.map
       (fun kind ->
-         let mt, monad, func =
+        let func (_, id, args, _) =
+          let body =
+            match args with
+              | [] -> assert false
+              | [ _ ] -> G.args_apps <:expr< A.$lid:id$ >> args
+              | _ ->
+                  let (ps, _) = G.vars args in
+                   <:expr<
+                     let ( $tup:paCom_of_list ps$ ) = $id:to_arg id$ x0 in
+                     $G.args_apps <:expr< A.$lid:id$ >> args$
+                   >> in
+      
+          match kind with
+            | Ik_abstract -> assert false
+      
+            | Sync ->
+                <:expr<
+                  ($`str:id$,
+                  fun x0 ->
+                    $id:of_res id$
+                      $if has_excs
+                       then <:expr< pack_orpc_result (fun () -> $body$) >>
+                       else body$)
+                >>
+      
+            | Lwt ->
+                if has_excs
+                then
+                  <:expr<
+                    ($`str:id$,
+                    fun x0 ->
+                      Lwt.try_bind
+                        (fun () -> $body$)
+                        (fun v -> Lwt.return ($id:of_res id$ (Orpc.Orpc_success v)))
+                        (fun e -> Lwt.return ($id:of_res id$ (map_exns e))))
+                  >>
+                else
+                  <:expr<
+                    ($`str:id$,
+                    fun x0 ->
+                      Lwt.bind $body$ (fun v -> Lwt.return ($id:of_res id$ v)))
+                  >> in
+
+         let mt, monad =
            match kind with
              | Ik_abstract -> assert false
-             | Sync -> "Sync", <:ident< Orpc_js_server.Sync >>, sync_func
-             | Lwt -> "Lwt", <:ident< Lwt >>, lwt_func in
+             | Sync -> "Sync", <:ident< Orpc_js_server.Sync >>
+             | Lwt -> "Lwt", <:ident< Lwt >> in
          <:str_item<
            module $uid:mt$ (A : $uid:name$.$uid:mt$) =
            struct
