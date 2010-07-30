@@ -214,61 +214,14 @@ dispatch begin function
        flag ["ocaml"; "compile"; "FAKE_SERVER"] & S[A"-ppopt"; A"-DFAKE_SERVER"];
        flag ["ocaml"; "ocamldep"; "FAKE_SERVER"] & S[A"-ppopt"; A"-DFAKE_SERVER"];
 
-       rule ("orpc: %.ml -> %_aux.ml[i]")
-         ~prods:[
-           "%_aux.ml"; "%_aux.mli";
-           "%_clnt.ml"; "%_clnt.mli";
-           "%_srv.ml"; "%_srv.mli";
-           "%_trace.ml"; "%_trace.mli"
-         ]
-         ~deps:["%.ml"]
-         begin fun env build ->
-           let x = env "%.ml" in
-           Cmd (S [A"orpc"; P x])
-         end;
-
-       rule ("orpc: %.mli -> %_aux.ml[i]")
-         ~prods:[
-           "%_aux.ml"; "%_aux.mli";
-           "%_clnt.ml"; "%_clnt.mli";
-           "%_srv.ml"; "%_srv.mli";
-           "%_trace.ml"; "%_trace.mli"
-         ]
-         ~deps:["%.mli"]
-         begin fun env build ->
-           let x = env "%.mli" in
-           Cmd (S [A"orpc"; P x])
-         end;
-
-       rule ("orpc: %.ml -> %_js_aux.ml[i]")
-         ~prods:[
-           "%_js_aux.ml"; "%_js_aux.mli";
-           "%_js_clnt.ml"; "%_js_clnt.mli";
-           "%_js_srv.ml"; "%_js_srv.mli";
-           "%_js_comet_clnt.ml"; "%_js_comet_clnt.mli";
-           "%_js_comet_srv.ml"; "%_js_comet_srv.mli";
-           "%_trace.ml"; "%_trace.mli"
-         ]
-         ~deps:["%.ml"]
-         begin fun env build ->
-           let x = env "%.ml" in
-           Cmd (S [A"orpc"; A"--js"; P x])
-         end;
-
-       rule ("orpc: %.mli -> %_js_aux.ml[i]")
-         ~prods:[
-           "%_js_aux.ml"; "%_js_aux.mli";
-           "%_js_clnt.ml"; "%_js_clnt.mli";
-           "%_js_srv.ml"; "%_js_srv.mli";
-           "%_js_comet_clnt.ml"; "%_js_comet_clnt.mli";
-           "%_js_comet_srv.ml"; "%_js_comet_srv.mli";
-           "%_trace.ml"; "%_trace.mli"
-         ]
-         ~deps:["%.mli"]
-         begin fun env build ->
-           let x = env "%.mli" in
-           Cmd (S [A"orpc"; A"--js"; P x])
-         end;
+       List.iter begin fun tag ->
+         rule ("orpc: %.ml -> %_" ^ tag ^ ".ml[i]")
+           ~prods:[ "%_" ^ tag ^ ".ml"; "%_" ^ tag ^ ".mli"; ]
+           ~deps:["%.ml"]
+           begin fun env build ->
+             let x = env "%.ml" in Cmd (S [A"orpc"; A("--" ^ tag); P x])
+           end
+       end [ "aux"; "clnt"; "srv"; "trace"; "js_aux"; "js_clnt"; "js_srv"; "js_comet_clnt"; "js_comet_srv" ]
 
   | _ -> ()
 end

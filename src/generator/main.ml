@@ -29,7 +29,17 @@ let _ = let module M = Camlp4OCamlParser.Make(Syntax) in ()
 
 module Loc = Camlp4.PreCast.Loc
 
-let js = ref false
+let modules = [
+  ref false, "aux", Gen_aux.gen_mli, Gen_aux.gen_ml;
+  ref false, "clnt", Gen_clnt.gen_mli, Gen_clnt.gen_ml;
+  ref false, "srv", Gen_srv.gen_mli, Gen_srv.gen_ml;
+  ref false, "trace", Gen_trace.gen_mli, Gen_trace.gen_ml;
+  ref false, "js_aux", Gen_js_aux.gen_mli, Gen_js_aux.gen_ml;
+  ref false, "js_clnt", Gen_js_clnt.gen_mli, Gen_js_clnt.gen_ml;
+  ref false, "js_srv", Gen_js_srv.gen_mli, Gen_js_srv.gen_ml;
+  ref false, "js_comet_clnt", Gen_js_comet_clnt.gen_mli, Gen_js_comet_clnt.gen_ml;
+  ref false, "js_comet_srv", Gen_js_comet_srv.gen_mli, Gen_js_comet_srv.gen_ml;
+]
 
 let do_file fn =
   let print_error loc msg =
@@ -47,23 +57,9 @@ let do_file fn =
     let base = Filename.chop_extension fn in
     let mod_base = String.capitalize (Filename.basename base) in
 
-    let modules =
-      if !js
-      then [
-        "js_aux", Gen_js_aux.gen_mli, Gen_js_aux.gen_ml;
-        "js_clnt", Gen_js_clnt.gen_mli, Gen_js_clnt.gen_ml;
-        "js_srv", Gen_js_srv.gen_mli, Gen_js_srv.gen_ml;
-        "js_comet_clnt", Gen_js_comet_clnt.gen_mli, Gen_js_comet_clnt.gen_ml;
-        "js_comet_srv", Gen_js_comet_srv.gen_mli, Gen_js_comet_srv.gen_ml;
-        "trace", Gen_trace.gen_mli, Gen_trace.gen_ml;
-      ] else [
-        "aux", Gen_aux.gen_mli, Gen_aux.gen_ml;
-        "clnt", Gen_clnt.gen_mli, Gen_clnt.gen_ml;
-        "srv", Gen_srv.gen_mli, Gen_srv.gen_ml;
-        "trace", Gen_trace.gen_mli, Gen_trace.gen_ml;
-      ] in
+    let modules = List.filter (fun (flag, _, _, _) -> !flag) modules in
 
-    ListLabels.iter modules ~f:(fun (ext, gen_mli, gen_ml) ->
+    ListLabels.iter modules ~f:(fun (_, ext, gen_mli, gen_ml) ->
       Printers.OCaml.print_interf ~output_file:(base ^ "_" ^ ext ^ ".mli") (gen_mli mod_base intf);
       Printers.OCaml.print_implem ~output_file:(base ^ "_" ^ ext ^ ".ml") (gen_ml mod_base intf))
   with
@@ -71,8 +67,11 @@ let do_file fn =
     | Loc.Exc_located (loc, e) -> print_error loc (Printexc.to_string e)
     | Error (loc, msg) -> print_error loc msg
 
-let args = Arg.align [
-  "--js", Arg.Set js, "generate client/server for Orpc-js";
-]
+let args =
+  Arg.align
+    (List.map
+       (fun (flag, ext, _, _) ->
+          "--" ^ ext, Arg.Set flag, "generate *_" ^ ext ^ ".ml[i]")
+       modules)
 
 let _ = Arg.parse args do_file "usage:"
