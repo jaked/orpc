@@ -36,12 +36,13 @@ let gen_mli name (typedefs, excs, funcs, kinds) =
          let mt, ret =
            match kind with
              | Ik_abstract -> assert false
-             | Sync -> "Sync", <:ctyp< string >>
-             | Lwt -> "Lwt", <:ctyp< string Lwt.t >> in
+             | Sync -> "Sync", (fun t -> t)
+             | Lwt -> "Lwt", (fun t -> TyApp (_loc, <:ctyp< Lwt.t >>, t)) in
          <:sig_item<
            module $uid:mt$ : functor (A : $uid:name$.$uid:mt$) ->
            sig
-             val handler : string -> $ret$
+             val handler : string -> $ret <:ctyp< string >>$
+             val funcs : (string * (Orpc_js_server.obj -> $ret <:ctyp< Orpc_js_server.obj >>$)) list
            end
          >>)
       kinds in
@@ -66,7 +67,7 @@ let gen_ml name (typedefs, excs, funcs, kinds) =
           let body =
             match args with
               | [] -> assert false
-              | [ _ ] -> G.args_apps <:expr< A.$lid:id$ >> args
+              | [ _ ] -> <:expr< A.$lid:id$ ($id:to_arg id$ x0) >>
               | _ ->
                   let (ps, _) = G.vars args in
                    <:expr<
@@ -113,9 +114,10 @@ let gen_ml name (typedefs, excs, funcs, kinds) =
          <:str_item<
            module $uid:mt$ (A : $uid:name$.$uid:mt$) =
            struct
+             let funcs = $G.conses (List.map func funcs)$
              let handler =
                let module H = Orpc_js_server.Handler($id:monad$) in
-               H.handler $G.conses (List.map func funcs)$
+               H.handler funcs
            end
          >>)
       kinds in
