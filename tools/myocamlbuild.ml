@@ -244,8 +244,9 @@ dispatch begin function
          ~prods:[
            "%_js_aux.ml"; "%_js_aux.mli";
            "%_js_clnt.ml"; "%_js_clnt.mli";
-           "%_js_comet_clnt.ml"; "%_js_comet_clnt.mli";
            "%_js_srv.ml"; "%_js_srv.mli";
+           "%_js_comet_clnt.ml"; "%_js_comet_clnt.mli";
+           "%_js_comet_srv.ml"; "%_js_comet_srv.mli";
            "%_trace.ml"; "%_trace.mli"
          ]
          ~deps:["%.ml"]
@@ -258,8 +259,9 @@ dispatch begin function
          ~prods:[
            "%_js_aux.ml"; "%_js_aux.mli";
            "%_js_clnt.ml"; "%_js_clnt.mli";
-           "%_js_comet_clnt.ml"; "%_js_comet_clnt.mli";
            "%_js_srv.ml"; "%_js_srv.mli";
+           "%_js_comet_clnt.ml"; "%_js_comet_clnt.mli";
+           "%_js_comet_srv.ml"; "%_js_comet_srv.mli";
            "%_trace.ml"; "%_trace.mli"
          ]
          ~deps:["%.mli"]
