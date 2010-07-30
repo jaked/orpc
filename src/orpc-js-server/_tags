@@ -1,1 +1,1 @@
-<orpc_js_server.ml*> : pkg_nethttpd,pkg_jslib,syntax_camlp4o,pkg_ulex,pkg_orpc
+<orpc_js_server.ml*> : pkg_jslib,syntax_camlp4o,pkg_ulex,pkg_orpc
