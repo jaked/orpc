@@ -7,9 +7,13 @@ orpc_js_comet_server.mli orpc_js_comet_server.cmi \
 BFILES=$(addprefix _build/,$(FILES))
 
 all: myocamlbuild.ml
+	OCAMLFIND_IGNORE_DUPS_IN=$(LIBDIR)/site-lib \
+	OCAMLPATH=`pwd`/../../stage \
 	ocamlbuild orpc-js-comet-server.cma orpc-js-comet-server.cmxa
 
 doc:
+	OCAMLFIND_IGNORE_DUPS_IN=$(LIBDIR)/site-lib \
+	OCAMLPATH=`pwd`/../../stage \
 	ocamlbuild -no-links doc.docdir/index.html
 
 install:

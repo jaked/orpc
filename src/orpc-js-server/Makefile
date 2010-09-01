@@ -7,9 +7,15 @@ orpc_js_server.mli orpc_js_server.cmi \
 BFILES=$(addprefix _build/,$(FILES))
 
 all: myocamlbuild.ml
+	OCAMLFIND_IGNORE_DUPS_IN=$(LIBDIR)/site-lib \
+	OCAMLPATH=`pwd`/../../stage \
 	ocamlbuild orpc-js-server.cma orpc-js-server.cmxa
+	ocamlfind remove -destdir ../../stage orpc-js-server
+	ocamlfind install -destdir ../../stage orpc-js-server META $(BFILES)
 
 doc:
+	OCAMLFIND_IGNORE_DUPS_IN=$(LIBDIR)/site-lib \
+	OCAMLPATH=`pwd`/../../stage \
 	ocamlbuild -no-links doc.docdir/index.html
 
 install:
