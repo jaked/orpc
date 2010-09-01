@@ -1,5 +1,5 @@
 let service handler =
-  let process (cgi : Netcgi_types.cgi_activation) =
+  let process (cgi : Netcgi.cgi_activation) =
     let res =
       try handler (cgi#argument "BODY")#value
       with Not_found -> raise (Invalid_argument "bad_request") in
@@ -28,9 +28,9 @@ let start() =
     "usage: netplex [options]";
 
   let config_cgi = {
-    Netcgi_env.default_config with
-      Netcgi_env.permitted_input_content_types = "text/plain" ::
-      Netcgi_env.default_config.Netcgi_env.permitted_input_content_types
+    Netcgi.default_config with
+      Netcgi.permitted_input_content_types = "text/plain" ::
+      Netcgi.default_config.Netcgi.permitted_input_content_types
   } in
 
   let module M = Proto_js_srv.Sync(struct
