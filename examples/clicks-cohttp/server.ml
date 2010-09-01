@@ -11,20 +11,20 @@ end
 
 module M = Proto_js_srv.Lwt(Server)
 
-let clicks req out =
+let clicks req =
   let body = Http_request.body req in
   lwt body_string = Http_message.string_of_body body in
   lwt res = M.handler body_string in
-  Http_daemon.respond ~body:res out
+  Http_daemon.respond ~body:res ()
 
-let callback _ req out =
+let callback _ req =
   match Http_request.path req with
-    | "/" -> Http_daemon.respond_file ~fname:"index.html" ~mime_type:"text/html" out
-    | "/_build/clicks.js" -> Http_daemon.respond_file ~fname:"_build/clicks.js" ~mime_type:"application/javascript" out
-    | "/clicks" -> clicks req out
-    | url -> Http_daemon.respond_error ~status:`Not_found ~body:("not found: " ^ url) out
+    | "/" -> Http_daemon.respond_file ~fname:"index.html" ~mime_type:"text/html" ()
+    | "/_build/clicks.js" -> Http_daemon.respond_file ~fname:"_build/clicks.js" ~mime_type:"application/javascript" ()
+    | "/clicks" -> clicks req
+    | url -> Http_daemon.respond_error ~status:`Not_found ~body:("not found: " ^ url) ()
 
-let exn_handler exn out = Lwt.return ()
+let exn_handler exn = Lwt.return ()
 
 let spec = {
   Http_daemon.address = "0.0.0.0";

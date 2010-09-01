@@ -20,16 +20,16 @@ end
 
 let _ = let module M = Proto_js_srv.Lwt(Server) in Orpc_js_comet_server.bind server M.funcs
 
-let callback conn_id req out =
+let callback conn_id req =
   match Http_request.path req with
-    | "/" -> Http_daemon.respond_file ~fname:"index.html" ~mime_type:"text/html" out
-    | "/_build/clicks.js" -> Http_daemon.respond_file ~fname:"_build/clicks.js" ~mime_type:"application/javascript" out
-    | "/clicks" -> Orpc_js_comet_server.callback server conn_id req out
-    | url -> Http_daemon.respond_error ~status:`Not_found ~body:("not found: " ^ url) out
+    | "/" -> Http_daemon.respond_file ~fname:"index.html" ~mime_type:"text/html" ()
+    | "/_build/clicks.js" -> Http_daemon.respond_file ~fname:"_build/clicks.js" ~mime_type:"application/javascript" ()
+    | "/clicks" -> Orpc_js_comet_server.callback server conn_id req
+    | url -> Http_daemon.respond_error ~status:`Not_found ~body:("not found: " ^ url) ()
 
 let conn_closed conn_id = Orpc_js_comet_server.conn_closed server conn_id
 
-let exn_handler exn out = Lwt.return ()
+let exn_handler exn = Lwt.return ()
 
 let spec = {
   Http_daemon.address = "0.0.0.0";

@@ -33,5 +33,5 @@ val find_session_by_id : t -> string -> session
 val session_id : session -> string
 val iter_sessions : t -> (string -> session -> unit) -> unit
 
-val callback : t -> (Cohttpserver.Http_daemon.conn_id -> Cohttp.Http_request.request -> Lwt_io.output_channel Lwt.t -> unit Lwt.t)
+val callback : t -> (Cohttpserver.Http_daemon.conn_id -> Cohttp.Http_request.request -> string Lwt_stream.t Lwt.t)
 val conn_closed : t -> (Cohttpserver.Http_daemon.conn_id -> unit)
