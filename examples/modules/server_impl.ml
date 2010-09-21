@@ -27,6 +27,8 @@ struct
   let maybe_raise flag =
     if flag
     then raise (Protocol.Bar 17)
+
+  let add1_string_list l = List.map (fun i -> string_of_int (int_of_string i + 1)) l
 end
 
 module Lwt =
@@ -56,4 +58,6 @@ struct
     if flag
     then fail (Protocol.Bar 17)
     else return ()
+
+  let add1_string_list l = return (List.map (fun i -> string_of_int (int_of_string i + 1)) l)
 end

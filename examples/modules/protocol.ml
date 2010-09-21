@@ -15,6 +15,7 @@ sig
   val add1_lst : int lst -> int lst _r
   val addN : ?n:int -> int -> int _r
   val maybe_raise : bool -> unit _r
+  val add1_string_list : string list -> string list _r
 end
 
 module type Sync = Abstract with type 'a _r = 'a
