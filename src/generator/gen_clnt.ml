@@ -82,22 +82,43 @@ let gen_ml name (typedefs, excs, funcs, kinds) =
 
               | Sync ->
                   let body2 = <:expr< $id:to_res id$ (Rpc_client.sync_call c $`str:id$ ($id:of_arg id$ x0)) >> in
-                  if has_excs
-                  then <:expr< C.with_client (fun c -> Orpc.unpack_orpc_result $body2$) >>
-                  else <:expr< C.with_client (fun c -> $body2$) >>
+                  <:expr<
+                    C.with_client (fun c ->
+                      $if has_excs
+                       then <:expr< Orpc.unpack_orpc_result $body2$ >>
+                       else body2$)
+                  >>
 
               | Lwt ->
+                  (*
+                    Lwt.wakeup can raise a random exception (say if a
+                    dependency was added with Lwt.ignore_result), and
+                    we don't want to call Lwt.wakeup_exn on the same
+                    thread in that case, so below we wrap the result
+                    in Lwt.{Return,Fail} in order to call Lwt.wakeup
+                    outside the try.
+
+                    XXX should move this into a library function
+                  *)
+                  let body2 = <:expr< $id:to_res id$ (g ()) >> in
                   <:expr<
                     let t, u = Lwt.wait () in
                     C.with_client (fun c ->
                       Rpc_client.add_call c $`str:id$ ($id:of_arg id$ x0)
                         (fun g ->
-                           $if has_excs
-                            then <:expr< try Lwt.wakeup u (Orpc.unpack_orpc_result ($id:to_res id$ (g ()))) with e -> Lwt.wakeup_exn u e >>
-                            else <:expr< Lwt.wakeup u ($id:to_res id$ (g ())) >>$));
+                           let r = 
+                             try Lwt.Return 
+                               ($if has_excs
+                                 then <:expr< Orpc.unpack_orpc_result $body2$ >>
+                                 else body2$)
+                             with e -> Lwt.Fail e in
+                           match r with
+                             | Lwt.Return v -> Lwt.wakeup u v
+                             | Lwt.Fail e -> Lwt.wakeup_exn u e
+                             | _ -> assert false));
                     t
                   >> in
-                  
+
           <:str_item<
             let $lid:id$ =
               $G.args_funs args
