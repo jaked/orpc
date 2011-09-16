@@ -9,7 +9,7 @@ BFILES=$(addprefix _build/,$(FILES))
 all: myocamlbuild.ml
 	OCAMLFIND_IGNORE_DUPS_IN=$(LIBDIR)/site-lib \
 	OCAMLPATH=`pwd`/../../stage \
-	ocamlbuild orpc-js-server.cma orpc-js-server.cmxa
+	ocamlbuild $(OCAMLBUILD_FLAGS) orpc-js-server.cma orpc-js-server.cmxa
 	ocamlfind remove -destdir ../../stage orpc-js-server
 	ocamlfind install -destdir ../../stage orpc-js-server META $(BFILES)
 

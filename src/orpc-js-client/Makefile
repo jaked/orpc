@@ -7,7 +7,7 @@ orpc_js_client.mli orpc_js_client.cmi \
 BFILES=$(addprefix _build/,$(FILES))
 
 all: myocamlbuild.ml
-	ocamlbuild orpc-js-client.cmjsa
+	ocamlbuild $(OCAMLBUILD_FLAGS) orpc-js-client.cmjsa
 
 doc:
 	ocamlbuild -no-links doc.docdir/index.html

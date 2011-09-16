@@ -9,7 +9,7 @@ BFILES=$(addprefix _build/,$(FILES))
 all: myocamlbuild.ml
 	OCAMLFIND_IGNORE_DUPS_IN=$(LIBDIR)/site-lib \
 	OCAMLPATH=`pwd`/../../stage \
-	ocamlbuild orpc-js-comet-server.cma orpc-js-comet-server.cmxa
+	ocamlbuild $(OCAMLBUILD_FLAGS) orpc-js-comet-server.cma orpc-js-comet-server.cmxa
 
 doc:
 	OCAMLFIND_IGNORE_DUPS_IN=$(LIBDIR)/site-lib \

@@ -12,7 +12,7 @@ PA_CMO=pa_orpc_with.cmo
 endif
 
 all: myocamlbuild.ml
-	ocamlbuild main.byte $(PA_CMO)
+	ocamlbuild $(OCAMLBUILD_FLAGS) main.byte $(PA_CMO)
 
 doc:
 

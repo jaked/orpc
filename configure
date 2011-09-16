@@ -282,6 +282,9 @@ LIBDIR = $libdir
 ENABLE_OCAMLJS = $enable_ocamljs
 ENABLE_TYPE_CONV = $enable_type_conv
 ENABLE_COHTTPSERVER = $enable_cohttpserver
+
+OCAMLBUILD = ocamlbuild
+OCAMLBUILD_FLAGS = -tag debug
 _EOF_
 
 ######################################################################

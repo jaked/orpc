@@ -9,7 +9,7 @@ BFILES=$(addprefix _build/,$(FILES))
 all: myocamlbuild.ml
 	OCAMLFIND_IGNORE_DUPS_IN=$(LIBDIR)/site-lib \
 	OCAMLPATH=`pwd`/../../stage \
-	ocamlbuild orpc-onc.cma orpc-onc.cmxa
+	ocamlbuild $(OCAMLBUILD_FLAGS) orpc-onc.cma orpc-onc.cmxa
 
 doc:
 	OCAMLFIND_IGNORE_DUPS_IN=$(LIBDIR)/site-lib \
