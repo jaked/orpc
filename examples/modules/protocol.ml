@@ -1,6 +1,15 @@
 type 'a lst = Nil | Cons of 'a * 'a lst
 type r = { fst: int; snd: int option; trd: int array; }
 
+(* types equivalent to primitives allowed *)
+type string_alias = string
+
+(* types with recursive definition to primitive equivalent allowed *)
+type sarray = string_alias_two array
+and string_alias_two = string_alias
+
+type poly = [`A of int | `B | `C of string | `D of (string_alias * int)]
+
 exception Foo
 exception Bar of int
 
@@ -16,6 +25,9 @@ sig
   val addN : ?n:int -> int -> int _r
   val maybe_raise : bool -> unit _r
   val add1_string_list : string list -> string list _r
+  val add1_alias_list : string_alias list -> string_alias_two list _r
+  val add1_string_array : string array -> sarray _r
+  val add1_poly_list : [`A of int | `B | `C of string | `D of (string_alias * int)] list -> poly list _r
 end
 
 module type Sync = Abstract with type 'a _r = 'a

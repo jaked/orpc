@@ -24,6 +24,9 @@ struct
       ignore (C.add1_pair (17, 22));
       ignore (try C.maybe_raise true with _ -> ());
       ignore (C.add1_string_list ["5";"6";"7"]);
+      ignore (C.add1_alias_list ["5";"6";"7"]);
+      ignore (C.add1_string_array [|"5";"6";"7"|]);
+      ignore (C.add1_poly_list [`A 5; `B; `C "6"; `D ("7", 8)]);
   end
   
   module T = Orpc_pp.Trace_of_formatter(struct let formatter = Format.err_formatter end)
@@ -50,7 +53,10 @@ struct
         catch
           (fun () -> C.maybe_raise true)
           (function _ -> return ()) >>= fun _ ->
-        C.add1_string_list ["5";"6";"7"]
+        C.add1_string_list ["5";"6";"7"] >>= fun _ ->
+        C.add1_alias_list ["5";"6";"7"]  >>= fun _ ->
+        C.add1_string_array [|"5";"6";"7"|] >>= fun _ ->
+        C.add1_poly_list [`A 5; `B; `C "6"; `D ("7", 8)];
       )
   end
   
