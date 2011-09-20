@@ -225,4 +225,127 @@ let parse_interface i =
   let { typedefs = typedefs; exceptions = excs; module_types = mts } = s in
   if List.for_all (function { mt_kind = Ik_abstract } -> true | _ -> false) mts
   then loc_error Loc.ghost "must declare at least one non-Abstract module type";
+
+  (* Let's erase all the primitive type aliases.  We could probably erase *all*
+     aliases, but we only need the primitives.  Specifically, we must do it for
+     string aliases used in arrays and lists: ocamlnet treats xdr string arrays
+     special, so gen_aux generates different code for string arrays and lists.
+  *)
+  let is_primitive { td_typ } =
+    match td_typ with
+      | Unit   _
+      | Int    _
+      | Float  _
+      | Bool   _
+      | Char   _
+      | String _ -> true
+      | _        -> false
+  in
+
+  (* The table for holding the alias mappings *)
+  let aliases = Hashtbl.create 10 in
+
+  (* Map every type. This lets us remove the typedef for the alias entirely.
+     The generator won't create xdr conversion functions, so we'll wind up
+     with a compilation error if we missed a case *)
+  let rec typ_mapper = function
+    | Tuple (loc, typs) -> Tuple (loc, List.map typ_mapper typs)
+    | Record (loc, fields) ->
+        let fields =
+          List.map (fun f -> { f with f_typ = typ_mapper f.f_typ} ) fields
+        in
+        Record (loc, fields)
+    | Variant (loc, arms) ->
+        let arm_mapper (ident, typs) =
+          (ident, List.map typ_mapper typs)
+        in
+        Variant (loc, List.map arm_mapper arms)
+    | PolyVar (loc, kind, arms) ->
+        let arm_mapper = function
+          | Pv_of (ident, typs) -> Pv_of (ident, List.map typ_mapper typs)
+          | Pv_pv typ           -> Pv_pv (typ_mapper typ)
+        in
+        PolyVar (loc, kind, List.map arm_mapper arms)
+    | Array (loc, typ) -> Array (loc, typ_mapper typ)
+    | List  (loc, typ) -> List  (loc, typ_mapper typ)
+    | Option (loc, typ) -> Option (loc, typ_mapper typ)
+    | Ref (loc, typ) -> Ref (loc, typ_mapper typ)
+    | Apply (loc, idents, ident, typs) ->
+        (try
+           let alias = Hashtbl.find aliases ident  in
+           alias.td_typ
+         with Not_found ->
+           Apply (loc, idents, ident, List.map typ_mapper typs)
+        )
+    | Arrow (loc, typ1, typ2) -> Arrow (loc, typ_mapper typ1, typ_mapper typ2)
+    | r -> r
+  in  (* let rec typ_mapper *)
+
+  (* Build a table of aliases AND remove them from the typedefs *)
+  let rec loop typedefs =
+    (* Sweep out the aliases table *)
+    if Hashtbl.length aliases > 0 then
+      List.iter (fun { td_id } -> Hashtbl.remove aliases td_id) typedefs;
+
+    (* Map all aliased types *)
+    let typedefs =
+      if Hashtbl.length aliases > 0 then
+        List.map
+          (fun typedef -> { typedef with td_typ = typ_mapper typedef.td_typ })
+          typedefs
+      else
+        typedefs
+    in
+
+    (* Partition the list to pull out the aliased ones *)
+    match List.partition is_primitive typedefs with
+      | [], rest -> rest
+      | primitives, rest ->
+          List.iter (fun typedef -> Hashtbl.replace aliases typedef.td_id typedef) primitives;
+          loop rest
+  in
+
+  (* Map over the lists of types, possibly recursing on each list, to track and remove
+     primitive aliases *)
+  let typedefs =
+    List.filter
+      (function
+        | [] -> false
+        | _  -> true
+      )
+      (List.map loop typedefs)
+  in
+
+  (* Map over the modules to replace aliases with the primitive type *)
+  let mts =
+    if Hashtbl.length aliases = 0 then
+      mts  (* fast exit when nothing to do *)
+    else (
+
+      (* Mappers for walking the module record *)
+      let argtype_mapper = function
+        | Unlabelled (loc, typ) -> Unlabelled (loc, typ_mapper typ)
+        | Labelled   (loc, ident, typ) -> Labelled (loc, ident, typ_mapper typ)
+        | Optional   (loc, ident, typ) -> Optional (loc, ident, typ_mapper typ)
+      in
+
+      let func_mapper (loc, ident, argtypes, typ) =
+        (loc, ident, List.map argtype_mapper argtypes, typ_mapper typ)
+      in
+
+      (* Map all modules *)
+      List.map
+        (fun mt ->
+          let mt_funcs =
+            match mt.mt_funcs with
+              | With -> mt.mt_funcs
+              | Explicit funcs -> Explicit (List.map func_mapper funcs)
+          in
+          { mt with
+            mt_funcs = mt_funcs;
+          }
+        )
+        mts
+    )
+  in  (* let mts = *)
   (typedefs, excs, mts)

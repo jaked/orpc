@@ -12,7 +12,7 @@ orpc_pp.mli orpc_pp.cmi \
 BFILES=$(addprefix _build/,$(FILES))
 
 all: myocamlbuild.ml
-	ocamlbuild orpc.cma orpc.cmxa $(CMJSA)
+	ocamlbuild $(OCAMLBUILD_FLAGS) orpc.cma orpc.cmxa $(CMJSA)
 	ocamlfind remove -destdir ../../stage orpc
 	ocamlfind install -destdir ../../stage orpc META $(BFILES)
 

@@ -29,6 +29,17 @@ struct
     then raise (Protocol.Bar 17)
 
   let add1_string_list l = List.map (fun i -> string_of_int (int_of_string i + 1)) l
+  let add1_alias_list = add1_string_list
+  let add1_string_array = Array.map (fun i -> string_of_int (int_of_string i + 1))
+  let add1_poly_list l =
+    List.map
+      (function
+        | `A i     -> `A (i + 1)
+        | `B       -> `B
+        | `C s     -> `C (string_of_int (int_of_string s + 1))
+        | `D (s,i) -> `D (string_of_int (int_of_string s + 1), i + 1)
+      )
+      l
 end
 
 module Lwt =
@@ -60,4 +71,7 @@ struct
     else return ()
 
   let add1_string_list l = return (List.map (fun i -> string_of_int (int_of_string i + 1)) l)
+  let add1_alias_list = add1_string_list
+  let add1_string_array arr = return (Sync.add1_string_array arr)
+  let add1_poly_list l = return (Sync.add1_poly_list l)
 end
