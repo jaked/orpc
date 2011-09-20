@@ -29,6 +29,7 @@ struct
     then raise (Protocol.Bar 17)
 
   let add1_string_list l = List.map (fun i -> string_of_int (int_of_string i + 1)) l
+  let add1_string_alias_list = add1_string_list
 end
 
 module Lwt =
@@ -60,4 +61,5 @@ struct
     else return ()
 
   let add1_string_list l = return (List.map (fun i -> string_of_int (int_of_string i + 1)) l)
+  let add1_string_alias_list = add1_string_list
 end

@@ -188,12 +188,8 @@ let rec gen_to qual_id t x =
             | _ -> assert false
         >>
 
-    | Array (_loc, String _) -> <:expr< Xdr.dest_xv_array_of_string_fast $x$ >>
-
     | Array (_loc, t) ->
-        <:expr< Array.map (fun x -> $gen_to t <:expr< x >>$) (Xdr.dest_xv_array $x$) >>
-
-    | List (_loc, String _) -> <:expr< Array.to_list (Xdr.dest_xv_array_of_string_fast $x$) >>
+        <:expr< Orpc_onc.to_array (fun x -> $gen_to t <:expr< x >>$) $x$ >>
 
     | List (_loc, t) ->
         <:expr< Orpc_onc.to_list (fun x -> $gen_to t <:expr< x >>$) $x$ >>
@@ -292,12 +288,8 @@ let rec gen_of qual_id t v =
                 >> in
         <:expr< match $v$ with $list:List.mapi mc arms$ >>
 
-    | Array (_loc, String _) -> <:expr< Xdr.XV_array_of_string_fast $v$ >>
-
     | Array (_loc, t) ->
-        <:expr< Xdr.XV_array (Array.map (fun v -> $gen_of t <:expr< v >>$) $v$) >>
-
-    | List (_loc, String _) -> <:expr< Xdr.XV_array_of_string_fast (Array.of_list $v$) >>
+        <:expr< Orpc_onc.of_array (fun v -> $gen_of t <:expr< v >>$) $v$ >>
 
     | List (_loc, t) ->
         <:expr< Orpc_onc.of_list (fun v -> $gen_of t <:expr< v >>$) $v$ >>

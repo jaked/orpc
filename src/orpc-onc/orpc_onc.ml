@@ -27,14 +27,32 @@ let x_char =
 
 let x_list x'a = Xdr.x_array_max x'a
 
+let to_array to'a x =
+  match x with
+    | Xdr.XV_array_of_string_fast a -> Obj.magic a
+    | Xdr.XV_array a -> Array.map to'a a
+    | _ -> raise Xdr.Dest_failure
+
+let of_array of'a = function
+  | [||] -> Xdr.XV_array [||] (* encoding doesn't care about XV_array vs. XV_array_of_string_fast *)
+  | a when Obj.tag (Obj.repr a.(0)) == Obj.string_tag ->
+      Xdr.XV_array_of_string_fast (Obj.magic a)
+  | a ->
+      Xdr.XV_array (Array.map of'a a)
+
 let to_list to'a x =
-  let a = Xdr.dest_xv_array x in
-  let rec tolist i res = (* following Array.to_list *)
-    if i < 0 then res else tolist (i - 1) (to'a (Array.unsafe_get a i) :: res) in
-  tolist (Array.length a - 1) []
+  match x with
+    | Xdr.XV_array_of_string_fast a -> Obj.magic (Array.to_list a)
+    | Xdr.XV_array a ->
+        let rec tolist i res = (* following Array.to_list *)
+          if i < 0 then res else tolist (i - 1) (to'a (Array.unsafe_get a i) :: res) in
+        tolist (Array.length a - 1) []
+    | _ -> raise Xdr.Dest_failure
 
 let of_list of'a = function (* following Array.of_list *)
-  | [] -> Xdr.XV_array [||]
+  | [] -> Xdr.XV_array [||] (* encoding doesn't care about XV_array vs. XV_array_of_string_fast *)
+  | hd::_ as l when Obj.tag (Obj.repr hd) == Obj.string_tag ->
+      Xdr.XV_array_of_string_fast (Array.of_list (Obj.magic l))
   | hd::tl as l ->
       let a = Array.create (List.length l) (of'a hd) in
       let rec fill i = function

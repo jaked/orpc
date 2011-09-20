@@ -1,5 +1,6 @@
 type 'a lst = Nil | Cons of 'a * 'a lst
 type r = { fst: int; snd: int option; trd: int array; }
+type string_alias = string
 
 exception Foo
 exception Bar of int
@@ -16,6 +17,7 @@ sig
   val addN : ?n:int -> int -> int _r
   val maybe_raise : bool -> unit _r
   val add1_string_list : string list -> string list _r
+  val add1_string_alias_list : string_alias list -> string_alias list _r
 end
 
 module type Sync = Abstract with type 'a _r = 'a
