@@ -39,7 +39,7 @@ let to_list to'a x =
   let map_to_list f a = (* following Array.to_list *)
     let rec tolist i res =
       if i < 0 then res else tolist (i - 1) (f (Array.unsafe_get a i) :: res) in
-    tolist (Array.length a -1) [] in
+    tolist (Array.length a - 1) [] in
   match x with
     | Xdr.XV_array_of_string_fast a -> map_to_list (fun s -> to'a (Xdr.XV_string s)) a
     | Xdr.XV_array a -> map_to_list to'a a
